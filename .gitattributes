@@ -1,0 +1,4 @@
+# Preserve upstream generated models, including their original line endings.
+src/linkerbot/arm/kinetix/urdf/*.urdf -text -whitespace
+# Keep the upstream license verbatim.
+LICENSE -whitespace

@@ -1,0 +1,51 @@
+[project]
+name = "linkerbot-arm"
+version = "0.5.4"
+description = "LinkerBot A7, A7lite and P7 robotic arm Python SDK"
+readme = "README.md"
+authors = [{ name = "LinkerBot" }, { name = "Jason Yip", email = "yezi.2022@outlook.com" }]
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = [
+  "numpy>=1.24",
+  "scipy>=1.10",
+  "pydantic>=2.0,<3",
+  "python-can>=4.6.1,<5",
+]
+
+[project.optional-dependencies]
+# ROS2 can provide its own ABI-compatible Pinocchio instead of the PyPI wheels.
+kinetix = ["pin>=4.1.0"]
+test = ["pytest>=7.4,<9", "pytest-timeout>=2.3"]
+dev = ["ruff>=0.11", "build>=1.2"]
+
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["linkerbot*"]
+
+[tool.setuptools.package-data]
+linkerbot = ["py.typed"]
+"linkerbot.arm.kinetix.urdf" = ["*.urdf"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--strict-markers", "-m", "not hardware and not interactive"]
+markers = [
+  "hardware: requires physical hardware (explicit opt-in only)",
+  "interactive: requires human observation",
+  "canfd: CAN FD communication tests",
+  "slow: long-running tests",
+  "a7: A7 arm tests",
+  "a7_lite: A7lite arm tests",
+  "p7: P7 arm tests",
+  "basic: basic functionality",
+  "lifecycle: connection and resource lifecycle",
+  "safety: safety verification",
+  "motion: motion control",
+  "extra: additional interactive tests",
+]

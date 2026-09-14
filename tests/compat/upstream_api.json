@@ -1,0 +1,2296 @@
+{
+  "source_repository": "linkerbot-python-sdk",
+  "source_commit": "c6167ba1a0fc72de074985fbb001e1e5ee75b739",
+  "source_version": "0.5.4",
+  "files": {
+    "linkerbot/arm/__init__.py": {
+      "sha256": "6b3921d0a725d4013b93c0110edd0bc0bcde37161bdc3cee4c607ff55424e8ab",
+      "signatures": {}
+    },
+    "linkerbot/arm/a7/__init__.py": {
+      "sha256": "d57a30028a7ddec4fee97cf7cf14132f607dd36a1a11c653cfaac8367af9b809",
+      "signatures": {}
+    },
+    "linkerbot/arm/a7/a7.py": {
+      "sha256": "1f3918431401cc749e567a8fd8acc0c0f26222f308e48902716909781bad157f",
+      "signatures": {
+        "_guard_not_moving": {
+          "args": "method",
+          "returns": null,
+          "decorators": []
+        },
+        "A7.__init__": {
+          "args": "self, side: Literal['left', 'right'], interface_name: str, interface_type: str='socketcan', tcp_offset: list[float]=[0.0, 0.0, 0.0], world_frame: Literal['urdf', 'maestro']='urdf'",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7._check_motors": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7._on_bus_error": {
+          "args": "self, error: Exception",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7.can_interface": {
+          "args": "self",
+          "returns": "CanInterface",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7.start_polling": {
+          "args": "self, intervals: dict[SensorType, float] | None=None",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7.stop_polling": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7.is_moving": {
+          "args": "self",
+          "returns": "bool",
+          "decorators": []
+        },
+        "A7.wait_motion_done": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7.set_control_mode": {
+          "args": "self, mode: ControlMode",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7.enable": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7.disable": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7.reset_error": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7.emergency_stop": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7._set_angles": {
+          "args": "self, angles: list[float], *, check_limits: bool=True",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7.set_velocities": {
+          "args": "self, velocities: list[float]",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7.set_accelerations": {
+          "args": "self, accelerations: list[float]",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7.get_state": {
+          "args": "self",
+          "returns": "State",
+          "decorators": []
+        },
+        "A7.get_angles": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "A7.get_control_angles": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "A7.get_velocities": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "A7.get_control_velocities": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "A7.get_control_acceleration": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "A7.get_torques": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "A7.get_temperatures": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "A7.get_pose": {
+          "args": "self",
+          "returns": "Pose",
+          "decorators": []
+        },
+        "A7.home": {
+          "args": "self, *, blocking: bool=True",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7.move_j": {
+          "args": "self, target_joints: list[float], *, blocking: bool=True",
+          "returns": "None",
+          "decorators": [
+            "_guard_not_moving"
+          ]
+        },
+        "A7.move_p": {
+          "args": "self, target_pose: Pose, *, current_angles: list[float] | None=None, blocking: bool=True",
+          "returns": "None",
+          "decorators": [
+            "_guard_not_moving"
+          ]
+        },
+        "A7.move_l": {
+          "args": "self, target_pose: Pose, *, max_velocity: float=MOVE_L_DEFAULT_MAX_VELOCITY, max_angular_velocity: float=MOVE_L_DEFAULT_MAX_ANGULAR_VELOCITY, acceleration: float=MOVE_L_DEFAULT_ACCELERATION, angular_acceleration: float=MOVE_L_DEFAULT_ANGULAR_ACCELERATION, current_pose: Pose | None=None, current_angles: list[float] | None=None",
+          "returns": "None",
+          "decorators": [
+            "_guard_not_moving"
+          ]
+        },
+        "A7.set_position_kps": {
+          "args": "self, kps: list[float]",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7.set_velocity_kps": {
+          "args": "self, kps: list[float]",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7.set_velocity_kis": {
+          "args": "self, kis: list[float]",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7.calibrate_zero": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7.forward_kinematics": {
+          "args": "self, angles: list[float]",
+          "returns": "Pose",
+          "decorators": []
+        },
+        "A7.inverse_kinematics": {
+          "args": "self, pose: Pose, *, current_angles: list[float] | None=None",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "A7.set_joint_limits": {
+          "args": "self, limits: list[tuple[float, float]]",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7.get_joint_limits": {
+          "args": "self",
+          "returns": "list[tuple[float, float]]",
+          "decorators": []
+        },
+        "A7.close": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7.__enter__": {
+          "args": "self",
+          "returns": "'A7'",
+          "decorators": []
+        },
+        "A7.__exit__": {
+          "args": "self, exc_type, exc_val, exc_tb",
+          "returns": null,
+          "decorators": []
+        },
+        "A7._poses_close": {
+          "args": "a: Pose, b: Pose, pos_tol: float=0.001, rot_tol: float=0.01",
+          "returns": "bool",
+          "decorators": [
+            "staticmethod"
+          ]
+        },
+        "A7._trapezoidal_duration": {
+          "args": "distance: float, speed: float, acceleration: float",
+          "returns": "float",
+          "decorators": [
+            "staticmethod"
+          ]
+        },
+        "A7._move_duration": {
+          "args": "self, current_angles: list[float], target_angles: list[float], control_speeds: list[float], control_accelerations: list[float]",
+          "returns": "float",
+          "decorators": []
+        },
+        "A7.save_params": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        }
+      }
+    },
+    "linkerbot/arm/a7/consts.py": {
+      "sha256": "d0818c04a1915ecf7e7ef7158bc38454d577c68a4cc5f6de5eb8e1e7aba21841",
+      "signatures": {}
+    },
+    "linkerbot/arm/a7/motor.py": {
+      "sha256": "bf7cb1184d35a12a82c7899679689856bc6b42591b2902710f67c9d5708f5c26",
+      "signatures": {
+        "A7Motor.__init__": {
+          "args": "self, id: int, dispatcher: CANMessageDispatcher",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7Motor.angle": {
+          "args": "self",
+          "returns": "AngleState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7Motor.velocity": {
+          "args": "self",
+          "returns": "VelocityState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7Motor.torque": {
+          "args": "self",
+          "returns": "TorqueState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7Motor.temperature": {
+          "args": "self",
+          "returns": "TemperatureState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7Motor.control_angle": {
+          "args": "self",
+          "returns": "AngleState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7Motor.control_velocity": {
+          "args": "self",
+          "returns": "VelocityState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7Motor.control_acceleration": {
+          "args": "self",
+          "returns": "AccelerationState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7Motor.enabled": {
+          "args": "self",
+          "returns": "bool",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7Motor.position_kp": {
+          "args": "self",
+          "returns": "float",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7Motor.velocity_kp": {
+          "args": "self",
+          "returns": "float",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7Motor.velocity_ki": {
+          "args": "self",
+          "returns": "float",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7Motor._send": {
+          "args": "self, data: bytes",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7Motor._on_message": {
+          "args": "self, msg: can.Message",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7Motor._get_relay": {
+          "args": "self, cmd: int",
+          "returns": "DataRelay[bytes]",
+          "decorators": []
+        },
+        "A7Motor._read_register": {
+          "args": "self, cmd: int, timeout_s: float=1.0",
+          "returns": "bytes",
+          "decorators": []
+        },
+        "A7Motor._read_register_float": {
+          "args": "self, cmd: int, timeout_s: float=1.0",
+          "returns": "float",
+          "decorators": []
+        },
+        "A7Motor._save_params": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7Motor.set_control_mode": {
+          "args": "self, mode: ControlMode",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7Motor.enable": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7Motor.disable": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7Motor.calibrate_zero": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7Motor.reset_error": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7Motor.set_angle": {
+          "args": "self, angle: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7Motor.set_velocity": {
+          "args": "self, velocity: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7Motor.set_acceleration": {
+          "args": "self, acceleration: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7Motor.set_deceleration": {
+          "args": "self, deceleration: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7Motor.set_velocity_kp": {
+          "args": "self, kp: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7Motor.set_velocity_ki": {
+          "args": "self, ki: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7Motor.set_position_kp": {
+          "args": "self, kp: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7Motor.read_initial_state": {
+          "args": "self, timeout_s: float=1.0",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7Motor.has_initial_data": {
+          "args": "self",
+          "returns": "bool",
+          "decorators": []
+        },
+        "A7Motor.check_alive": {
+          "args": "self, timeout_s: float=0.02",
+          "returns": "bool",
+          "decorators": []
+        },
+        "A7Motor.start_polling": {
+          "args": "self, intervals: dict[SensorType, float]",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7Motor.stop_polling": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7Motor._poll_sensor": {
+          "args": "self, sensor_type: SensorType, interval_s: float",
+          "returns": "None",
+          "decorators": []
+        }
+      }
+    },
+    "linkerbot/arm/a7_lite/__init__.py": {
+      "sha256": "018b1a685466d6a1f3356a34545b1b6b0748d5051826c47814e0abf815adaa67",
+      "signatures": {}
+    },
+    "linkerbot/arm/a7_lite/a7_lite.py": {
+      "sha256": "56c9676c689eb38819d5372f70c2df356e32b462462fb5ccc3b34f89cf01cb71",
+      "signatures": {
+        "_guard_not_moving": {
+          "args": "method",
+          "returns": null,
+          "decorators": []
+        },
+        "A7lite.__init__": {
+          "args": "self, side: Literal['left', 'right'], interface_name: str, interface_type: str='socketcan', tcp_offset: list[float]=[0.0, 0.0, 0.0], world_frame: Literal['urdf', 'maestro']='urdf'",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite._wait_reporting_data": {
+          "args": "self, timeout_s: float=1.0",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite._check_motors": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite._on_bus_error": {
+          "args": "self, error: Exception",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite.can_interface": {
+          "args": "self",
+          "returns": "CanInterface",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7lite.is_moving": {
+          "args": "self",
+          "returns": "bool",
+          "decorators": []
+        },
+        "A7lite.wait_motion_done": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite.set_control_mode": {
+          "args": "self, mode: ControlMode",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite.enable": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite.disable": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite.reset_error": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite.emergency_stop": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite._set_angles": {
+          "args": "self, angles: list[float], *, check_limits: bool=True",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite.set_velocities": {
+          "args": "self, velocities: list[float]",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite.set_accelerations": {
+          "args": "self, accelerations: list[float]",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite.get_state": {
+          "args": "self",
+          "returns": "State",
+          "decorators": []
+        },
+        "A7lite.get_angles": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "A7lite.get_control_angles": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "A7lite.get_velocities": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "A7lite.get_control_velocities": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "A7lite.get_control_acceleration": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "A7lite.get_torques": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "A7lite.get_temperatures": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "A7lite.get_pose": {
+          "args": "self",
+          "returns": "Pose",
+          "decorators": []
+        },
+        "A7lite.home": {
+          "args": "self, *, blocking: bool=True",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite.move_j": {
+          "args": "self, target_joints: list[float], *, blocking: bool=True",
+          "returns": "None",
+          "decorators": [
+            "_guard_not_moving"
+          ]
+        },
+        "A7lite.move_p": {
+          "args": "self, target_pose: Pose, *, current_angles: list[float] | None=None, blocking: bool=True",
+          "returns": "None",
+          "decorators": [
+            "_guard_not_moving"
+          ]
+        },
+        "A7lite.move_l": {
+          "args": "self, target_pose: Pose, *, max_velocity: float=MOVE_L_DEFAULT_MAX_VELOCITY, max_angular_velocity: float=MOVE_L_DEFAULT_MAX_ANGULAR_VELOCITY, acceleration: float=MOVE_L_DEFAULT_ACCELERATION, angular_acceleration: float=MOVE_L_DEFAULT_ANGULAR_ACCELERATION, current_pose: Pose | None=None, current_angles: list[float] | None=None",
+          "returns": "None",
+          "decorators": [
+            "_guard_not_moving"
+          ]
+        },
+        "A7lite._poses_close": {
+          "args": "a: Pose, b: Pose, pos_tol: float=0.001, rot_tol: float=0.01",
+          "returns": "bool",
+          "decorators": [
+            "staticmethod"
+          ]
+        },
+        "A7lite._trapezoidal_duration": {
+          "args": "distance: float, speed: float, acceleration: float",
+          "returns": "float",
+          "decorators": [
+            "staticmethod"
+          ]
+        },
+        "A7lite._move_duration": {
+          "args": "self, current_angles: list[float], target_angles: list[float], control_speeds: list[float], control_accelerations: list[float]",
+          "returns": "float",
+          "decorators": []
+        },
+        "A7lite.forward_kinematics": {
+          "args": "self, angles: list[float]",
+          "returns": "Pose",
+          "decorators": []
+        },
+        "A7lite.inverse_kinematics": {
+          "args": "self, pose: Pose, *, current_angles: list[float] | None=None",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "A7lite.calibrate_zero": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite.set_position_kps": {
+          "args": "self, kps: list[float]",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite.set_velocity_kps": {
+          "args": "self, kps: list[float]",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite.set_velocity_kis": {
+          "args": "self, kis: list[float]",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite.set_velocity_filt_gains": {
+          "args": "self, gains: list[float]",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite.close": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite.set_joint_limits": {
+          "args": "self, limits: list[tuple[float, float]]",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7lite.get_joint_limits": {
+          "args": "self",
+          "returns": "list[tuple[float, float]]",
+          "decorators": []
+        },
+        "A7lite.__enter__": {
+          "args": "self",
+          "returns": "'A7lite'",
+          "decorators": []
+        },
+        "A7lite.__exit__": {
+          "args": "self, exc_type, exc_val, exc_tb",
+          "returns": null,
+          "decorators": []
+        }
+      }
+    },
+    "linkerbot/arm/a7_lite/consts.py": {
+      "sha256": "b20fa9f92d5b2159aff80d56a796fc15c80ee49b5d191bd4010b56affd844097",
+      "signatures": {}
+    },
+    "linkerbot/arm/a7_lite/model.py": {
+      "sha256": "08af2b58d4ebf1d0837ffcdcf7ce85a7d84e32d2da7db0de33d564513dfbbf5f",
+      "signatures": {}
+    },
+    "linkerbot/arm/a7_lite/motor.py": {
+      "sha256": "606f6a1b0c65cd12d4cfed9d7ab1035be8733a6afedb61145dc8398897a04319",
+      "signatures": {
+        "A7liteMotor.__init__": {
+          "args": "self, id: int, dispatcher: CANMessageDispatcher",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7liteMotor.angle": {
+          "args": "self",
+          "returns": "AngleState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7liteMotor.control_angle": {
+          "args": "self",
+          "returns": "AngleState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7liteMotor.velocity": {
+          "args": "self",
+          "returns": "VelocityState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7liteMotor.control_velocity": {
+          "args": "self",
+          "returns": "VelocityState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7liteMotor.control_acceleration": {
+          "args": "self",
+          "returns": "AccelerationState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7liteMotor.torque": {
+          "args": "self",
+          "returns": "TorqueState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7liteMotor.temperature": {
+          "args": "self",
+          "returns": "TemperatureState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7liteMotor.loc_kp": {
+          "args": "self",
+          "returns": "float",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7liteMotor.speed_kp": {
+          "args": "self",
+          "returns": "float",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7liteMotor.speed_ki": {
+          "args": "self",
+          "returns": "float",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7liteMotor.speed_filt_gain": {
+          "args": "self",
+          "returns": "float",
+          "decorators": [
+            "property"
+          ]
+        },
+        "A7liteMotor._generate_arbitration_id": {
+          "args": "self, comm_type: CommType",
+          "returns": "int",
+          "decorators": []
+        },
+        "A7liteMotor._send": {
+          "args": "self, comm_type: CommType, data: bytes",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7liteMotor.set_control_mode": {
+          "args": "self, mode: ControlMode",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7liteMotor.enable": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7liteMotor.disable": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7liteMotor.calibrate_zero": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7liteMotor.reset_error": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7liteMotor.set_angle": {
+          "args": "self, angle: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7liteMotor.set_velocity": {
+          "args": "self, velocity: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7liteMotor.set_acceleration": {
+          "args": "self, acceleration: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7liteMotor.set_position_kp": {
+          "args": "self, kp: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7liteMotor.set_velocity_kp": {
+          "args": "self, kp: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7liteMotor.set_velicity_ki": {
+          "args": "self, ki: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7liteMotor.set_velocity_filt_gain": {
+          "args": "self, gain: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7liteMotor.has_reporting_data": {
+          "args": "self",
+          "returns": "bool",
+          "decorators": []
+        },
+        "A7liteMotor.start_reporting": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7liteMotor._write_register": {
+          "args": "self, register: int, value: bytes",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7liteMotor._write_register_float": {
+          "args": "self, register: int, value: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7liteMotor._write_register_u32": {
+          "args": "self, register: int, value: int",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7liteMotor._read_register": {
+          "args": "self, register: int, timeout_s: float=1.0",
+          "returns": "bytes",
+          "decorators": []
+        },
+        "A7liteMotor._read_register_float": {
+          "args": "self, register: int, timeout_s: float=1.0",
+          "returns": "float",
+          "decorators": []
+        },
+        "A7liteMotor._save_params": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7liteMotor.check_alive": {
+          "args": "self, timeout_s: float=0.02",
+          "returns": "bool",
+          "decorators": []
+        },
+        "A7liteMotor.read_initial_state": {
+          "args": "self, timeout_s: float=1.0",
+          "returns": "None",
+          "decorators": []
+        },
+        "A7liteMotor._on_message": {
+          "args": "self, msg: can.Message",
+          "returns": "None",
+          "decorators": []
+        }
+      }
+    },
+    "linkerbot/arm/common/__init__.py": {
+      "sha256": "ac48989eb0071ffdc4def7aed959b94c088669833386c9890e55b43dd06dc91c",
+      "signatures": {}
+    },
+    "linkerbot/arm/common/control_mode.py": {
+      "sha256": "b9631a7ab3c1ddb499dc8d1cc23be14b23b50025d683b8334c3cedfac5c7490f",
+      "signatures": {}
+    },
+    "linkerbot/arm/common/model.py": {
+      "sha256": "eb8e7c2e37da8e93aec29e85d5c3c09844932d123b754ae338e428026a979eaf",
+      "signatures": {
+        "Pose.from_list": {
+          "args": "cls, data: list[float]",
+          "returns": "'Pose'",
+          "decorators": [
+            "classmethod"
+          ]
+        },
+        "Pose.to_list": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        }
+      }
+    },
+    "linkerbot/arm/kinetix/__init__.py": {
+      "sha256": "e92c98ec8e4381e86bf6426dfa26cb6bf1a5a9c583a3757d650e6eaeb0015b35",
+      "signatures": {}
+    },
+    "linkerbot/arm/kinetix/kinetix.py": {
+      "sha256": "9115e43999a234dcd70de5ecaa42c0fe1ce813876caa4be25cf13f14ca7c379b",
+      "signatures": {
+        "IKResult.is_ok": {
+          "args": "self",
+          "returns": "bool",
+          "decorators": []
+        },
+        "ArmKinetix.__init__": {
+          "args": "self, urdf_path: str | Path, *, tcp_offset: list[float]=[0.0, 0.0, 0.0], world_frame: Literal['urdf', 'maestro']='urdf', side: Literal['left', 'right'] | None=None",
+          "returns": "None",
+          "decorators": []
+        },
+        "ArmKinetix.set_joint_limits": {
+          "args": "self, limits: list[tuple[float, float]]",
+          "returns": "None",
+          "decorators": []
+        },
+        "ArmKinetix.get_joint_limits": {
+          "args": "self",
+          "returns": "list[tuple[float, float]]",
+          "decorators": []
+        },
+        "ArmKinetix.side": {
+          "args": "self",
+          "returns": "Literal['left', 'right'] | None",
+          "decorators": [
+            "property"
+          ]
+        },
+        "ArmKinetix._load_model": {
+          "args": "self",
+          "returns": "pin.Model",
+          "decorators": []
+        },
+        "ArmKinetix.from_builtin": {
+          "args": "cls, arm_type: Literal['a7_lite', 'a7', 'p7'], side: Literal['left', 'right'], *, tcp_offset: list[float]=[0.0, 0.0, 0.0], world_frame: Literal['urdf', 'maestro']='urdf'",
+          "returns": "'ArmKinetix'",
+          "decorators": [
+            "classmethod"
+          ]
+        },
+        "ArmKinetix._build_ee_frame_id": {
+          "args": "self",
+          "returns": null,
+          "decorators": []
+        },
+        "ArmKinetix._perform_world_transform": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "ArmKinetix._forward_kinematics": {
+          "args": "self, angles: npt.NDArray[np.float64], data=None",
+          "returns": null,
+          "decorators": []
+        },
+        "ArmKinetix.forward_kinematics": {
+          "args": "self, angles: list[float], data=None",
+          "returns": "Pose",
+          "decorators": []
+        },
+        "ArmKinetix.inverse_kinematics_result": {
+          "args": "self, pose: Pose, current_angles: list[float]",
+          "returns": "IKResult",
+          "decorators": []
+        },
+        "ArmKinetix.inverse_kinematics": {
+          "args": "self, pose: Pose, current_angles: list[float]",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "ArmKinetix._solve_dls": {
+          "args": "self, data: object, target_pos: npt.NDArray[np.float64], target_R: npt.NDArray[np.float64], q0: npt.NDArray[np.float64], lo: npt.NDArray[np.float64], hi: npt.NDArray[np.float64], *, orient_weight: float=1.0, max_iter: int=100, err_tol: float=0.0001, damp: float=1e-06, null_space_gain: float=0.5",
+          "returns": "npt.NDArray[np.float64] | None",
+          "decorators": []
+        },
+        "ArmKinetix._trap_params": {
+          "args": "dist: float, v_max: float, a_max: float",
+          "returns": "tuple[float, float, float, float]",
+          "decorators": [
+            "staticmethod"
+          ]
+        },
+        "ArmKinetix._trap_s": {
+          "args": "t: float, t_acc: float, v_peak: float, t_cruise: float, a: float, dist: float",
+          "returns": "float",
+          "decorators": [
+            "staticmethod"
+          ]
+        },
+        "ArmKinetix.plan_move_l": {
+          "args": "self, current_pose: Pose, current_angles: list[float], target_pose: Pose, max_velocity: float, acceleration: float, max_angular_velocity: float, angular_acceleration: float, *, waypoint_interval: float=0.01",
+          "returns": "Generator[WayPoint, None, None]",
+          "decorators": []
+        },
+        "_compute_joint_limit_gradient": {
+          "args": "q: npt.NDArray[np.float64], lower: npt.NDArray[np.float64], upper: npt.NDArray[np.float64], margin: float=0.05",
+          "returns": "npt.NDArray[np.float64]",
+          "decorators": []
+        }
+      }
+    },
+    "linkerbot/arm/kinetix/urdf/__init__.py": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "signatures": {}
+    },
+    "linkerbot/arm/kinetix/urdf/a7__left.urdf": {
+      "sha256": "51905d86bfd70c99f46f9e96a26e309af745db3b6bd13fe5e1d6f774e915b4b9"
+    },
+    "linkerbot/arm/kinetix/urdf/a7__right.urdf": {
+      "sha256": "d344fedac286de3aaff9faf32983150e5dca3f3ae7466bfb5b4500397eb8c289"
+    },
+    "linkerbot/arm/kinetix/urdf/a7_lite__left.urdf": {
+      "sha256": "a077c52f82892acba98d5d364a6fce3960f910bc9728ee76839cb228b3f6038a"
+    },
+    "linkerbot/arm/kinetix/urdf/a7_lite__right.urdf": {
+      "sha256": "6ff93afa23fe9a466a9dc28803ad3528f7c25aaf2ae6ac80217ead78c2969009"
+    },
+    "linkerbot/arm/kinetix/urdf/p7__left.urdf": {
+      "sha256": "233a0fd9e6ce53a5aca9001b77714598ae5d9d996b084546f5efc55230f7edce"
+    },
+    "linkerbot/arm/kinetix/urdf/p7__right.urdf": {
+      "sha256": "a6c2af46d36b427b5167b51698dc79b231882b2384b320e578595496d85c9ed6"
+    },
+    "linkerbot/arm/p7/__init__.py": {
+      "sha256": "e2fcbde05bfacfdb7161f7b8ba9e9feedcccba62175f53eb5228c0a793a4b01e",
+      "signatures": {}
+    },
+    "linkerbot/arm/p7/consts.py": {
+      "sha256": "d0818c04a1915ecf7e7ef7158bc38454d577c68a4cc5f6de5eb8e1e7aba21841",
+      "signatures": {}
+    },
+    "linkerbot/arm/p7/motor_v2.py": {
+      "sha256": "320ac60fd580c4a42e44a848e5a924a6e3ef0c8f8f61cd106f738788d49dd746",
+      "signatures": {
+        "_quantize": {
+          "args": "value: float, vmin: float, vmax: float, bits: int",
+          "returns": "int",
+          "decorators": []
+        },
+        "_dequantize": {
+          "args": "raw: int, vmin: float, vmax: float, bits: int",
+          "returns": "float",
+          "decorators": []
+        },
+        "MotorV2.__init__": {
+          "args": "self, id: int, dispatcher: CANMessageDispatcher",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2.angle": {
+          "args": "self",
+          "returns": "AngleState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "MotorV2.velocity": {
+          "args": "self",
+          "returns": "VelocityState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "MotorV2.torque": {
+          "args": "self",
+          "returns": "TorqueState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "MotorV2.temperature": {
+          "args": "self",
+          "returns": "TemperatureState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "MotorV2.control_angle": {
+          "args": "self",
+          "returns": "AngleState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "MotorV2.control_velocity": {
+          "args": "self",
+          "returns": "VelocityState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "MotorV2.control_acceleration": {
+          "args": "self",
+          "returns": "AccelerationState",
+          "decorators": [
+            "property"
+          ]
+        },
+        "MotorV2.enabled": {
+          "args": "self",
+          "returns": "bool",
+          "decorators": [
+            "property"
+          ]
+        },
+        "MotorV2.position_kp": {
+          "args": "self",
+          "returns": "float",
+          "decorators": [
+            "property"
+          ]
+        },
+        "MotorV2.velocity_kp": {
+          "args": "self",
+          "returns": "float",
+          "decorators": [
+            "property"
+          ]
+        },
+        "MotorV2.velocity_ki": {
+          "args": "self",
+          "returns": "float",
+          "decorators": [
+            "property"
+          ]
+        },
+        "MotorV2.fault_code": {
+          "args": "self",
+          "returns": "int",
+          "decorators": [
+            "property"
+          ]
+        },
+        "MotorV2._send_control": {
+          "args": "self, data: bytes",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2._send_flash": {
+          "args": "self, data: bytes",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2._build_servo_frame": {
+          "args": "self, theta_ref: float, v_ref: float",
+          "returns": "bytes",
+          "decorators": []
+        },
+        "MotorV2._on_message": {
+          "args": "self, msg: can.Message",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2._on_feedback_frame": {
+          "args": "self, data: bytes",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2._on_flash_response": {
+          "args": "self, data: bytes",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2.set_control_mode": {
+          "args": "self, mode: ControlMode",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2.enable": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2.disable": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2.reset_error": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2.calibrate_zero": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2.set_angle": {
+          "args": "self, angle: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2.set_velocity": {
+          "args": "self, velocity: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2.set_acceleration": {
+          "args": "self, acceleration: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2.set_deceleration": {
+          "args": "self, deceleration: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2.set_position_kp": {
+          "args": "self, kp: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2.set_velocity_kp": {
+          "args": "self, kp: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2.set_velocity_ki": {
+          "args": "self, ki: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2.check_alive": {
+          "args": "self, timeout_s: float=0.1",
+          "returns": "bool",
+          "decorators": []
+        },
+        "MotorV2.read_initial_state": {
+          "args": "self, timeout_s: float=1.0",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2.has_initial_data": {
+          "args": "self",
+          "returns": "bool",
+          "decorators": []
+        },
+        "MotorV2.start_polling": {
+          "args": "self, intervals: dict[SensorType, float] | None=None",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2.stop_polling": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2._heartbeat_loop": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2._read_flash_param": {
+          "args": "self, index: int, timeout_s: float=1.0",
+          "returns": "bytes",
+          "decorators": []
+        },
+        "MotorV2._write_flash_param": {
+          "args": "self, index: int, data: bytes",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotorV2._save_params": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        }
+      }
+    },
+    "linkerbot/arm/p7/p7.py": {
+      "sha256": "0d7d9527b31234bc2a18f2ed07df5db6e7c94a430afdf7b956b88bf11aafc5e7",
+      "signatures": {
+        "_guard_not_moving": {
+          "args": "method",
+          "returns": null,
+          "decorators": []
+        },
+        "P7.__init__": {
+          "args": "self, side: Literal['left', 'right'], interface_name: str, interface_type: str='socketcan', tcp_offset: list[float]=[0.0, 0.0, 0.0], world_frame: Literal['urdf', 'maestro']='urdf'",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7._check_motors": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7._on_bus_error": {
+          "args": "self, error: Exception",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7.can_interface": {
+          "args": "self",
+          "returns": "CanInterface",
+          "decorators": [
+            "property"
+          ]
+        },
+        "P7.start_polling": {
+          "args": "self, intervals: dict[SensorType, float] | None=None",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7.stop_polling": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7.is_moving": {
+          "args": "self",
+          "returns": "bool",
+          "decorators": []
+        },
+        "P7.wait_motion_done": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7.set_control_mode": {
+          "args": "self, mode: ControlMode",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7.enable": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7.disable": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7.reset_error": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7.emergency_stop": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7._set_angles": {
+          "args": "self, angles: list[float], *, check_limits: bool=True",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7.set_velocities": {
+          "args": "self, velocities: list[float]",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7.set_accelerations": {
+          "args": "self, accelerations: list[float]",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7.get_state": {
+          "args": "self",
+          "returns": "State",
+          "decorators": []
+        },
+        "P7.get_angles": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "P7.get_control_angles": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "P7.get_velocities": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "P7.get_control_velocities": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "P7.get_control_acceleration": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "P7.get_torques": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "P7.get_temperatures": {
+          "args": "self",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "P7.get_pose": {
+          "args": "self",
+          "returns": "Pose",
+          "decorators": []
+        },
+        "P7.home": {
+          "args": "self, *, blocking: bool=True",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7.move_j": {
+          "args": "self, target_joints: list[float], *, blocking: bool=True",
+          "returns": "None",
+          "decorators": [
+            "_guard_not_moving"
+          ]
+        },
+        "P7.move_p": {
+          "args": "self, target_pose: Pose, *, current_angles: list[float] | None=None, blocking: bool=True",
+          "returns": "None",
+          "decorators": [
+            "_guard_not_moving"
+          ]
+        },
+        "P7.move_l": {
+          "args": "self, target_pose: Pose, *, max_velocity: float=MOVE_L_DEFAULT_MAX_VELOCITY, max_angular_velocity: float=MOVE_L_DEFAULT_MAX_ANGULAR_VELOCITY, acceleration: float=MOVE_L_DEFAULT_ACCELERATION, angular_acceleration: float=MOVE_L_DEFAULT_ANGULAR_ACCELERATION, current_pose: Pose | None=None, current_angles: list[float] | None=None",
+          "returns": "None",
+          "decorators": [
+            "_guard_not_moving"
+          ]
+        },
+        "P7.set_position_kps": {
+          "args": "self, kps: list[float]",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7.set_velocity_kps": {
+          "args": "self, kps: list[float]",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7.set_velocity_kis": {
+          "args": "self, kis: list[float]",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7.calibrate_zero": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7.forward_kinematics": {
+          "args": "self, angles: list[float]",
+          "returns": "Pose",
+          "decorators": []
+        },
+        "P7.inverse_kinematics": {
+          "args": "self, pose: Pose, *, current_angles: list[float] | None=None",
+          "returns": "list[float]",
+          "decorators": []
+        },
+        "P7.set_joint_limits": {
+          "args": "self, limits: list[tuple[float, float]]",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7.get_joint_limits": {
+          "args": "self",
+          "returns": "list[tuple[float, float]]",
+          "decorators": []
+        },
+        "P7.close": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "P7.__enter__": {
+          "args": "self",
+          "returns": "'P7'",
+          "decorators": []
+        },
+        "P7.__exit__": {
+          "args": "self, exc_type, exc_val, exc_tb",
+          "returns": null,
+          "decorators": []
+        },
+        "P7._poses_close": {
+          "args": "a: Pose, b: Pose, pos_tol: float=0.001, rot_tol: float=0.01",
+          "returns": "bool",
+          "decorators": [
+            "staticmethod"
+          ]
+        },
+        "P7._trapezoidal_duration": {
+          "args": "distance: float, speed: float, acceleration: float",
+          "returns": "float",
+          "decorators": [
+            "staticmethod"
+          ]
+        },
+        "P7._move_duration": {
+          "args": "self, current_angles: list[float], target_angles: list[float], control_speeds: list[float], control_accelerations: list[float]",
+          "returns": "float",
+          "decorators": []
+        },
+        "P7.save_params": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        }
+      }
+    },
+    "linkerbot/comm/__init__.py": {
+      "sha256": "6966ee02d30610cfb814aaebbdcb24dd983d820908889802120d87fb5e2050e3",
+      "signatures": {}
+    },
+    "linkerbot/comm/can/__init__.py": {
+      "sha256": "3bf9006ce5e9483e00e83ac0e08eb846399bb76c570f8d5d142f92364fddba8d",
+      "signatures": {}
+    },
+    "linkerbot/comm/can/can.py": {
+      "sha256": "751c0eff4a402f980577670e83e52c43b533f823fb590666f5e7cfb009c5e3c3",
+      "signatures": {
+        "CANMessageDispatcher.__init__": {
+          "args": "self, interface_name: str, interface_type: str='socketcan', on_bus_error: Callable[[Exception], None] | None=None, max_consecutive_errors: int=DEFAULT_MAX_CONSECUTIVE_ERRORS",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANMessageDispatcher.can_interface": {
+          "args": "self",
+          "returns": "CanInterface",
+          "decorators": [
+            "property"
+          ]
+        },
+        "CANMessageDispatcher._handle_bus_error": {
+          "args": "self, error: Exception",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANMessageDispatcher._recv_loop": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANMessageDispatcher.subscribe": {
+          "args": "self, callback: Callable[[can.Message], None]",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANMessageDispatcher.unsubscribe": {
+          "args": "self, callback: Callable[[can.Message], None]",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANMessageDispatcher._send_loop": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANMessageDispatcher.send": {
+          "args": "self, msg: can.Message",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANMessageDispatcher.stop": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANMessageDispatcher._join_worker_threads": {
+          "args": "self, current: threading.Thread",
+          "returns": "list[threading.Thread]",
+          "decorators": []
+        },
+        "CANMessageDispatcher.__enter__": {
+          "args": "self",
+          "returns": "'CANMessageDispatcher'",
+          "decorators": []
+        },
+        "CANMessageDispatcher.__exit__": {
+          "args": "self, exc_type, exc_val, exc_tb",
+          "returns": "None",
+          "decorators": []
+        },
+        "_error_backoff_s": {
+          "args": "consecutive_errors: int",
+          "returns": "float",
+          "decorators": []
+        }
+      }
+    },
+    "linkerbot/comm/can/types.py": {
+      "sha256": "7d3846646cf24c9f16ce65efd2847b034800cd06a02de42495bc3bb06c63ce19",
+      "signatures": {}
+    },
+    "linkerbot/comm/canfd/__init__.py": {
+      "sha256": "debe9158d15350decbe0c4607a0290be8f71b8f5884302a4fe2ecbb4682fd310",
+      "signatures": {}
+    },
+    "linkerbot/comm/canfd/ctypes_backend.py": {
+      "sha256": "a6c54f9f5bb8e8e78d95c28f196ccad6d33344c60874a0ab6fe27e5d794b89c0",
+      "signatures": {
+        "_canonical_library_key": {
+          "args": "candidate: str | Path",
+          "returns": "str",
+          "decorators": []
+        },
+        "_library_key": {
+          "args": "lib: Any",
+          "returns": "str",
+          "decorators": []
+        },
+        "_lifecycle_acquire": {
+          "args": "lib: Any",
+          "returns": "str",
+          "decorators": []
+        },
+        "_lifecycle_release": {
+          "args": "key: str | None",
+          "returns": "None",
+          "decorators": []
+        },
+        "_lifecycle_snapshot": {
+          "args": "",
+          "returns": "dict[str, int]",
+          "decorators": []
+        },
+        "CANFDInterface.__init__": {
+          "args": "self, device_index: int=0, channel_index: int=0, library_path: str | Path | None=None, config: CANFDConfigOptions | None=None",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDInterface.device_index": {
+          "args": "self",
+          "returns": "int",
+          "decorators": [
+            "property"
+          ]
+        },
+        "CANFDInterface.channel_index": {
+          "args": "self",
+          "returns": "int",
+          "decorators": [
+            "property"
+          ]
+        },
+        "CANFDInterface.config": {
+          "args": "self",
+          "returns": "CANFDConfigOptions",
+          "decorators": [
+            "property"
+          ]
+        },
+        "CANFDInterface._open": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDInterface._build_ctypes_config": {
+          "args": "self",
+          "returns": "CanFDConfig",
+          "decorators": []
+        },
+        "CANFDInterface.send": {
+          "args": "self, message: CANFDMessage, timeout_ms: int=CANFD_DEFAULT_SEND_TIMEOUT_MS",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDInterface.send_batch": {
+          "args": "self, messages: list[CANFDMessage], timeout_ms: int=CANFD_DEFAULT_SEND_TIMEOUT_MS",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDInterface.receive": {
+          "args": "self, max_frames: int=CANFD_DEFAULT_MAX_RECEIVE_FRAMES, timeout_ms: int=CANFD_DEFAULT_RECEIVE_TIMEOUT_MS",
+          "returns": "list[CANFDMessage]",
+          "decorators": []
+        },
+        "CANFDInterface.read_dev_info": {
+          "args": "self",
+          "returns": "dict[str, str]",
+          "decorators": []
+        },
+        "CANFDInterface.close": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDInterface._ensure_open": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDInterface._fill_frame": {
+          "args": "self, target: 'CanFDMsg', message: CANFDMessage",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDInterface._fill_tx_frame": {
+          "args": "self, message: CANFDMessage",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDInterface._message_to_frame": {
+          "args": "self, message: CANFDMessage",
+          "returns": "CanFDMsg",
+          "decorators": []
+        },
+        "CANFDInterface._frame_to_message": {
+          "args": "self, frame: CanFDMsg",
+          "returns": "CANFDMessage",
+          "decorators": []
+        },
+        "CANFDInterface.__enter__": {
+          "args": "self",
+          "returns": "'CANFDInterface'",
+          "decorators": []
+        },
+        "CANFDInterface.__exit__": {
+          "args": "self, exc_type, exc_val, exc_tb",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDInterface.__del__": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "_load_library": {
+          "args": "library_path: str | Path | None",
+          "returns": "Any",
+          "decorators": []
+        },
+        "_preload_vendor_dependencies": {
+          "args": "",
+          "returns": "None",
+          "decorators": []
+        },
+        "_library_candidates": {
+          "args": "library_path: str | Path | None",
+          "returns": "list[str | Path]",
+          "decorators": []
+        },
+        "_default_library_name": {
+          "args": "",
+          "returns": "str",
+          "decorators": []
+        },
+        "_ctypes_loader": {
+          "args": "",
+          "returns": "Any",
+          "decorators": []
+        },
+        "_bind_signatures": {
+          "args": "lib: Any",
+          "returns": "None",
+          "decorators": []
+        },
+        "_decode_c_string": {
+          "args": "value: bytes",
+          "returns": "str",
+          "decorators": []
+        },
+        "_mark_finalize_unsafe": {
+          "args": "",
+          "returns": "None",
+          "decorators": []
+        }
+      }
+    },
+    "linkerbot/comm/canfd/dispatcher.py": {
+      "sha256": "b8eb6e1d6e38fc709216ebaf7fdcfe37e098b2af9904e1596f6b447e7a075da6",
+      "signatures": {
+        "CANFDMessageDispatcher.__init__": {
+          "args": "self, device_index: int=0, channel_index: int=0, library_path: str | Path | None=None, config: CANFDConfigOptions | None=None, on_bus_error: Callable[[Exception], None] | None=None, max_consecutive_errors: int=DEFAULT_MAX_CONSECUTIVE_ERRORS, interface: CANFDBackend | None=None",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDMessageDispatcher.interface": {
+          "args": "self",
+          "returns": "CANFDBackend",
+          "decorators": [
+            "property"
+          ]
+        },
+        "CANFDMessageDispatcher._handle_bus_error": {
+          "args": "self, error: Exception",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDMessageDispatcher._recv_loop": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDMessageDispatcher._dispatch": {
+          "args": "self, message: CANFDMessage",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDMessageDispatcher.subscribe": {
+          "args": "self, callback: Callable[[CANFDMessage], None]",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDMessageDispatcher.subscribe_filter": {
+          "args": "self, predicate: Callable[[CANFDMessage], bool], callback: Callable[[CANFDMessage], None]",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDMessageDispatcher.unsubscribe": {
+          "args": "self, callback: Callable[[CANFDMessage], None]",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDMessageDispatcher._send_loop": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDMessageDispatcher.send": {
+          "args": "self, message: CANFDMessage",
+          "returns": "CANFDSendReceipt",
+          "decorators": []
+        },
+        "CANFDMessageDispatcher.stop": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDMessageDispatcher.__enter__": {
+          "args": "self",
+          "returns": "'CANFDMessageDispatcher'",
+          "decorators": []
+        },
+        "CANFDMessageDispatcher.__exit__": {
+          "args": "self, exc_type, exc_val, exc_tb",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDMessageDispatcher._register_receipt": {
+          "args": "self, receipt: CANFDSendReceipt",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDMessageDispatcher._discard_receipt": {
+          "args": "self, receipt: CANFDSendReceipt",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDMessageDispatcher._complete_receipt": {
+          "args": "self, receipt: CANFDSendReceipt",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDMessageDispatcher._fail_receipt": {
+          "args": "self, receipt: CANFDSendReceipt, error: BaseException",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDMessageDispatcher._take_receipt": {
+          "args": "self, receipt: CANFDSendReceipt",
+          "returns": "bool",
+          "decorators": []
+        },
+        "CANFDMessageDispatcher._fail_all_receipts": {
+          "args": "self, error: BaseException",
+          "returns": "None",
+          "decorators": []
+        },
+        "_error_backoff_s": {
+          "args": "consecutive_errors: int",
+          "returns": "float",
+          "decorators": []
+        },
+        "_send_error": {
+          "args": "error: BaseException, operation: str",
+          "returns": "CANError",
+          "decorators": []
+        }
+      }
+    },
+    "linkerbot/comm/canfd/socketcan_backend.py": {
+      "sha256": "72d9a12960c5d00e6cc6e7ef44133c51bb592ff8fc54bfc738630a7694b07a2e",
+      "signatures": {
+        "_LinkState.__init__": {
+          "args": "self, *, up: bool, fd: bool, bitrate: int | None, data_bitrate: int | None",
+          "returns": "None",
+          "decorators": []
+        },
+        "_LinkState.matches": {
+          "args": "self, *, bitrate: int, data_bitrate: int, fd: bool",
+          "returns": "bool",
+          "decorators": []
+        },
+        "SocketCANFDBackend.__init__": {
+          "args": "self, channel: str, *, bitrate: int=DEFAULT_NOMINAL_BITRATE, data_bitrate: int=DEFAULT_DATA_BITRATE, fd: bool=True, auto_reconfigure: bool=False, receive_own_messages: bool=False",
+          "returns": "None",
+          "decorators": []
+        },
+        "SocketCANFDBackend.channel": {
+          "args": "self",
+          "returns": "str",
+          "decorators": [
+            "property"
+          ]
+        },
+        "SocketCANFDBackend.bitrate": {
+          "args": "self",
+          "returns": "int",
+          "decorators": [
+            "property"
+          ]
+        },
+        "SocketCANFDBackend.data_bitrate": {
+          "args": "self",
+          "returns": "int",
+          "decorators": [
+            "property"
+          ]
+        },
+        "SocketCANFDBackend.fd": {
+          "args": "self",
+          "returns": "bool",
+          "decorators": [
+            "property"
+          ]
+        },
+        "SocketCANFDBackend.send": {
+          "args": "self, message: CANFDMessage, timeout_ms: int=10",
+          "returns": "None",
+          "decorators": []
+        },
+        "SocketCANFDBackend._frame_flags": {
+          "args": "self, message: CANFDMessage",
+          "returns": "tuple[bool, bool]",
+          "decorators": []
+        },
+        "SocketCANFDBackend.receive": {
+          "args": "self, max_frames: int=64, timeout_ms: int=10",
+          "returns": "list[CANFDMessage]",
+          "decorators": []
+        },
+        "SocketCANFDBackend.close": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "SocketCANFDBackend._ensure_link_state": {
+          "args": "self, *, auto_reconfigure: bool",
+          "returns": "None",
+          "decorators": []
+        },
+        "_to_canfd_message": {
+          "args": "msg: can.Message",
+          "returns": "CANFDMessage",
+          "decorators": []
+        },
+        "_format_setup_command": {
+          "args": "channel: str, bitrate: int, data_bitrate: int, fd: bool",
+          "returns": "str",
+          "decorators": []
+        },
+        "_format_reconfigure_command": {
+          "args": "channel: str, bitrate: int, data_bitrate: int, fd: bool",
+          "returns": "str",
+          "decorators": []
+        },
+        "_read_link_state": {
+          "args": "channel: str",
+          "returns": "_LinkState | None",
+          "decorators": []
+        },
+        "_bring_down": {
+          "args": "channel: str",
+          "returns": "None",
+          "decorators": []
+        },
+        "_bring_up": {
+          "args": "channel: str, bitrate: int, data_bitrate: int, fd: bool",
+          "returns": "None",
+          "decorators": []
+        },
+        "_run_ip": {
+          "args": "args: list[str]",
+          "returns": "None",
+          "decorators": []
+        }
+      }
+    },
+    "linkerbot/comm/canfd/types.py": {
+      "sha256": "d7a994a7150bdde2b58414050e0187d2f570b4d6cb283c1113acdaac4a6b1f85",
+      "signatures": {
+        "dlc_to_length": {
+          "args": "dlc: int",
+          "returns": "int",
+          "decorators": []
+        },
+        "length_to_dlc": {
+          "args": "length: int",
+          "returns": "int",
+          "decorators": []
+        },
+        "CANFDConfigOptions.__post_init__": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDMessage.__post_init__": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDMessage.from_bytes": {
+          "args": "cls, *, arbitration_id: int, data: bytes | bytearray | memoryview, dlc: int | None=None, is_extended_id: bool=True, frame_type: int | None=None, timestamp: int | None=None",
+          "returns": "'CANFDMessage'",
+          "decorators": [
+            "classmethod"
+          ]
+        },
+        "_normalize_data": {
+          "args": "data: object",
+          "returns": "bytes",
+          "decorators": []
+        },
+        "_require_int": {
+          "args": "value: object, name: str",
+          "returns": "int",
+          "decorators": []
+        },
+        "_validate_positive_uint32": {
+          "args": "value: object, name: str",
+          "returns": "None",
+          "decorators": []
+        },
+        "_validate_id": {
+          "args": "arbitration_id: object, max_value: int, name: str",
+          "returns": "None",
+          "decorators": []
+        },
+        "_validate_byte": {
+          "args": "value: object, name: str",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDBackend.send": {
+          "args": "self, message: 'CANFDMessage', timeout_ms: int=10",
+          "returns": "None",
+          "decorators": []
+        },
+        "CANFDBackend.receive": {
+          "args": "self, max_frames: int=64, timeout_ms: int=10",
+          "returns": "list['CANFDMessage']",
+          "decorators": []
+        },
+        "CANFDBackend.close": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        }
+      }
+    },
+    "linkerbot/exceptions.py": {
+      "sha256": "c740bf13d32c09a1d215ac3065a00b831e5d7dd94cc27e06596833f3d1827b65",
+      "signatures": {}
+    },
+    "linkerbot/motion_timer.py": {
+      "sha256": "1cd7d4ebade919d1fd2b09ad3f4686cdbf91295e639088e757815b4ae55affed",
+      "signatures": {
+        "MotionTimer.__init__": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotionTimer.start": {
+          "args": "self, duration: float",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotionTimer._on_done": {
+          "args": "self, generation: int",
+          "returns": "None",
+          "decorators": []
+        },
+        "MotionTimer.is_moving": {
+          "args": "self",
+          "returns": "bool",
+          "decorators": []
+        },
+        "MotionTimer.wait_done": {
+          "args": "self, timeout: float | None=None",
+          "returns": "bool",
+          "decorators": []
+        },
+        "MotionTimer.cancel": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "_validate_timeout": {
+          "args": "value: float, *, name: str",
+          "returns": "None",
+          "decorators": []
+        }
+      }
+    },
+    "linkerbot/py.typed": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "linkerbot/queue/__init__.py": {
+      "sha256": "55d9e5b51c88945c2cb11b56bb763327863598bddd123edcf2285611b0ef1fb8",
+      "signatures": {}
+    },
+    "linkerbot/queue/iterable_queue.py": {
+      "sha256": "f01ad74f67439c54d5b8cf5123c601d09df5d92464b04cdfa0eeacfb292c44f5",
+      "signatures": {
+        "IterableQueue.__init__": {
+          "args": "self, maxsize: int=0",
+          "returns": "None",
+          "decorators": []
+        },
+        "IterableQueue.put": {
+          "args": "self, item: T, block: bool=True, timeout: float | None=None",
+          "returns": "None",
+          "decorators": []
+        },
+        "IterableQueue.put_nowait": {
+          "args": "self, item: T",
+          "returns": "None",
+          "decorators": []
+        },
+        "IterableQueue.get": {
+          "args": "self, block: bool=True, timeout: float | None=None",
+          "returns": "T",
+          "decorators": []
+        },
+        "IterableQueue.get_nowait": {
+          "args": "self",
+          "returns": "T",
+          "decorators": []
+        },
+        "IterableQueue.empty": {
+          "args": "self",
+          "returns": "bool",
+          "decorators": []
+        },
+        "IterableQueue.close": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "IterableQueue.__iter__": {
+          "args": "self",
+          "returns": "Iterator[T]",
+          "decorators": []
+        },
+        "IterableQueue.__next__": {
+          "args": "self",
+          "returns": "T",
+          "decorators": []
+        },
+        "IterableQueue._is_full": {
+          "args": "self",
+          "returns": "bool",
+          "decorators": []
+        },
+        "_validate_timeout": {
+          "args": "*, block: bool, timeout: float | None",
+          "returns": "None",
+          "decorators": []
+        },
+        "_remaining_time": {
+          "args": "deadline: float | None",
+          "returns": "float | None",
+          "decorators": []
+        }
+      }
+    },
+    "linkerbot/relay.py": {
+      "sha256": "1d42da7ef0e13a89d6a932355fea9c4e3bce41f49d477dfee5142a243f1a7a41",
+      "signatures": {
+        "DataRelay.__init__": {
+          "args": "self",
+          "returns": "None",
+          "decorators": []
+        },
+        "DataRelay.snapshot": {
+          "args": "self",
+          "returns": "T | None",
+          "decorators": []
+        },
+        "DataRelay.wait": {
+          "args": "self, timeout_s: float",
+          "returns": "T",
+          "decorators": []
+        },
+        "DataRelay.request": {
+          "args": "self, send: Callable[[], object], timeout_s: float",
+          "returns": "T",
+          "decorators": []
+        },
+        "DataRelay._validate_timeout": {
+          "args": "timeout_s: float",
+          "returns": "None",
+          "decorators": [
+            "staticmethod"
+          ]
+        },
+        "DataRelay._register_waiter": {
+          "args": "self",
+          "returns": "tuple[threading.Event, dict[str, object]]",
+          "decorators": []
+        },
+        "DataRelay._wait_for": {
+          "args": "self, waiter: tuple[threading.Event, dict[str, object]], timeout_s: float",
+          "returns": "T",
+          "decorators": []
+        },
+        "DataRelay._discard_waiter": {
+          "args": "self, waiter: tuple[threading.Event, dict[str, object]]",
+          "returns": "None",
+          "decorators": []
+        },
+        "DataRelay.push": {
+          "args": "self, data: T",
+          "returns": "None",
+          "decorators": []
+        },
+        "DataRelay.set_sink": {
+          "args": "self, sink: Callable[[T], None] | None",
+          "returns": "None",
+          "decorators": []
+        }
+      }
+    }
+  }
+}
