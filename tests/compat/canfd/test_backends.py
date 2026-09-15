@@ -1,0 +1,362 @@
+import threading
+from collections.abc import Callable
+from typing import Any
+
+import pytest
+from linkerbot_transport.canfd import ctypes_backend as transport_backend
+
+from linkerbot_arm.comm.canfd import CANFDConfigOptions, CANFDMessage
+from linkerbot_arm.comm.canfd import ctypes_backend as backend
+from linkerbot_arm.exceptions import CANError, ValidationError
+
+
+class FakeFunction:
+    def __init__(
+        self,
+        result: int = 0,
+        hook: Callable[..., int] | None = None,
+    ) -> None:
+        self.result = result
+        self.hook = hook
+        self.calls: list[tuple[Any, ...]] = []
+        self.restype: Any = None
+        self.argtypes: list[Any] | None = None
+
+    def __call__(self, *args: Any) -> int:
+        self.calls.append(args)
+        if self.hook is not None:
+            return self.hook(*args)
+        return self.result
+
+
+class FakeLibrary:
+    def __init__(self) -> None:
+        self.LibCANbus_Init = FakeFunction(0)
+        self.LibCANbus_Exit = FakeFunction(0)
+        self.CAN_ScanDevice = FakeFunction(1)
+        self.CAN_OpenDevice = FakeFunction(0)
+        self.CAN_CloseDevice = FakeFunction(0)
+        self.CAN_ReadDevInfo = FakeFunction(0)
+        self.CANFD_Init = FakeFunction(0)
+        self.CANFD_Transmit = FakeFunction(1)
+        self.CANFD_Receive = FakeFunction(0)
+
+
+def make_interface(
+    monkeypatch: pytest.MonkeyPatch, lib: FakeLibrary
+) -> backend.CANFDInterface:
+    monkeypatch.setattr(transport_backend, "_load_library", lambda library_path: lib)
+    return backend.CANFDInterface()
+
+
+def test_concurrent_close_waits_for_io_device_close_and_lifecycle_release(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lib = FakeLibrary()
+    send_entered = threading.Event()
+    receive_entered = threading.Event()
+    vendor_close_entered = threading.Event()
+    lifecycle_exit_entered = threading.Event()
+    allow_send = threading.Event()
+    allow_receive = threading.Event()
+    allow_vendor_close = threading.Event()
+    allow_lifecycle_exit = threading.Event()
+
+    def blocking_send(*args: Any) -> int:
+        _ = args
+        send_entered.set()
+        if not allow_send.wait(timeout=2.0):
+            raise TimeoutError("test did not release CANFD_Transmit")
+        return 1
+
+    def blocking_receive(*args: Any) -> int:
+        _ = args
+        receive_entered.set()
+        if not allow_receive.wait(timeout=2.0):
+            raise TimeoutError("test did not release CANFD_Receive")
+        return 0
+
+    def blocking_vendor_close(*args: Any) -> int:
+        _ = args
+        vendor_close_entered.set()
+        if not allow_vendor_close.wait(timeout=2.0):
+            raise TimeoutError("test did not release CAN_CloseDevice")
+        return 0
+
+    def blocking_lifecycle_exit(*args: Any) -> int:
+        _ = args
+        lifecycle_exit_entered.set()
+        if not allow_lifecycle_exit.wait(timeout=2.0):
+            raise TimeoutError("test did not release LibCANbus_Exit")
+        return 0
+
+    lib.CANFD_Transmit.hook = blocking_send
+    lib.CANFD_Receive.hook = blocking_receive
+    lib.CAN_CloseDevice.hook = blocking_vendor_close
+    lib.LibCANbus_Exit.hook = blocking_lifecycle_exit
+    interface = make_interface(monkeypatch, lib)
+
+    errors: list[Exception] = []
+    send_done = threading.Event()
+    receive_done = threading.Event()
+    first_close_done = threading.Event()
+    second_close_done = threading.Event()
+
+    def run(operation: Callable[[], object], done: threading.Event) -> None:
+        try:
+            operation()
+        except Exception as error:
+            errors.append(error)
+        finally:
+            done.set()
+
+    message = CANFDMessage(arbitration_id=1, data=b"x")
+    send_thread = threading.Thread(
+        target=run,
+        args=(lambda: interface.send(message), send_done),
+        daemon=True,
+    )
+    receive_thread = threading.Thread(
+        target=run,
+        args=(interface.receive, receive_done),
+        daemon=True,
+    )
+    send_thread.start()
+    receive_thread.start()
+    assert send_entered.wait(timeout=1.0)
+    assert receive_entered.wait(timeout=1.0)
+
+    first_close_thread = threading.Thread(
+        target=run,
+        args=(interface.close, first_close_done),
+        daemon=True,
+    )
+    first_close_thread.start()
+    assert interface._closed_event.wait(timeout=1.0)
+
+    second_close_thread = threading.Thread(
+        target=run,
+        args=(interface.close, second_close_done),
+        daemon=True,
+    )
+    second_close_thread.start()
+    assert not second_close_done.wait(timeout=0.05)
+
+    # The owner drains transmit before receive, and neither close caller may
+    # return while either in-flight vendor call still owns its direction lock.
+    allow_send.set()
+    assert send_done.wait(timeout=1.0)
+    assert not vendor_close_entered.wait(timeout=0.05)
+    assert not second_close_done.is_set()
+
+    allow_receive.set()
+    assert receive_done.wait(timeout=1.0)
+    assert vendor_close_entered.wait(timeout=1.0)
+    assert not first_close_done.is_set()
+    assert not second_close_done.is_set()
+
+    # Device close alone is not completion: the process-level lifecycle exit
+    # must finish before a waiter can safely return and reopen the library.
+    allow_vendor_close.set()
+    assert lifecycle_exit_entered.wait(timeout=1.0)
+    assert not first_close_done.is_set()
+    assert not second_close_done.is_set()
+
+    allow_lifecycle_exit.set()
+    assert first_close_done.wait(timeout=1.0)
+    assert second_close_done.wait(timeout=1.0)
+    for thread in (
+        send_thread,
+        receive_thread,
+        first_close_thread,
+        second_close_thread,
+    ):
+        thread.join(timeout=1.0)
+        assert not thread.is_alive()
+
+    assert errors == []
+    assert lib.CAN_CloseDevice.calls == [(0, 0)]
+    assert len(lib.LibCANbus_Init.calls) == 1
+    assert len(lib.LibCANbus_Exit.calls) == 1
+
+    reopened = backend.CANFDInterface()
+    assert len(lib.LibCANbus_Init.calls) == 2
+    reopened.close()
+    assert len(lib.CAN_CloseDevice.calls) == 2
+    assert len(lib.LibCANbus_Exit.calls) == 2
+
+
+def test_concurrent_close_waiter_is_notified_when_vendor_close_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lib = FakeLibrary()
+    vendor_close_entered = threading.Event()
+    allow_vendor_close = threading.Event()
+
+    def failing_vendor_close(*args: Any) -> int:
+        _ = args
+        vendor_close_entered.set()
+        if not allow_vendor_close.wait(timeout=2.0):
+            raise TimeoutError("test did not release CAN_CloseDevice")
+        raise OSError("vendor close crashed")
+
+    lib.CAN_CloseDevice.hook = failing_vendor_close
+    interface = make_interface(monkeypatch, lib)
+    first_errors: list[Exception] = []
+    second_errors: list[Exception] = []
+    first_done = threading.Event()
+    second_done = threading.Event()
+
+    def call_close(errors: list[Exception], done: threading.Event) -> None:
+        try:
+            interface.close()
+        except Exception as error:
+            errors.append(error)
+        finally:
+            done.set()
+
+    first_thread = threading.Thread(
+        target=call_close,
+        args=(first_errors, first_done),
+        daemon=True,
+    )
+    first_thread.start()
+    assert vendor_close_entered.wait(timeout=1.0)
+
+    second_thread = threading.Thread(
+        target=call_close,
+        args=(second_errors, second_done),
+        daemon=True,
+    )
+    second_thread.start()
+    assert not second_done.wait(timeout=0.05)
+
+    allow_vendor_close.set()
+    assert first_done.wait(timeout=1.0)
+    assert second_done.wait(timeout=1.0)
+    first_thread.join(timeout=1.0)
+    second_thread.join(timeout=1.0)
+
+    assert len(first_errors) == 1
+    assert isinstance(first_errors[0], CANError)
+    assert "vendor close crashed" in str(first_errors[0])
+    assert second_errors == []
+    assert lib.CAN_CloseDevice.calls == [(0, 0)]
+    assert len(lib.LibCANbus_Exit.calls) == 1
+    assert interface._close_complete_event.is_set()
+
+
+@pytest.mark.parametrize(
+    "operation", ["send", "send_batch", "receive", "read_dev_info"]
+)
+def test_vendor_failures_keep_arm_error_type(monkeypatch, operation):
+    lib = FakeLibrary()
+    interface = make_interface(monkeypatch, lib)
+    lib.CANFD_Transmit.result = -1
+    lib.CANFD_Receive.result = -1
+    lib.CAN_ReadDevInfo.result = -1
+    message = CANFDMessage(1, b"x")
+    args = {"send": (message,), "send_batch": ([message, message],)}
+    try:
+        with pytest.raises(CANError) as caught:
+            getattr(interface, operation)(*args.get(operation, ()))
+        assert type(caught.value) is CANError
+    finally:
+        interface.close()
+
+
+@pytest.mark.parametrize("operation", ["send", "send_batch", "receive"])
+def test_vendor_input_validation_keeps_arm_error_type(monkeypatch, operation):
+    interface = make_interface(monkeypatch, FakeLibrary())
+    message = CANFDMessage(1, b"x")
+    args = {"send": (message,), "send_batch": ([message, message],)}
+    try:
+        with pytest.raises(ValidationError) as caught:
+            getattr(interface, operation)(*args.get(operation, ()), timeout_ms=-1)
+        assert type(caught.value) is ValidationError
+    finally:
+        interface.close()
+
+
+def test_shared_vendor_lifecycle_keeps_transport_close_policy(monkeypatch):
+    lib = FakeLibrary()
+    interface = make_interface(monkeypatch, lib)
+    other = transport_backend.CANFDInterface(channel_index=1)
+    try:
+        assert len(lib.LibCANbus_Init.calls) == 1
+        lib.CAN_CloseDevice.result = -1
+        with pytest.raises(CANError):
+            interface.close()
+        interface.close()
+        assert len(lib.CAN_CloseDevice.calls) == 1
+        assert len(lib.LibCANbus_Exit.calls) == 0
+        from linkerbot_transport.errors import TransportError
+
+        with pytest.raises(TransportError):
+            other.close()
+        assert len(lib.LibCANbus_Exit.calls) == 0
+        lib.CAN_CloseDevice.result = 0
+        other.close()
+        assert len(lib.CAN_CloseDevice.calls) == 3
+        assert len(lib.LibCANbus_Exit.calls) == 1
+    finally:
+        lib.CAN_CloseDevice.result = 0
+        interface.close()
+        other.close()
+
+
+def test_vendor_messages_and_config_keep_arm_identity(monkeypatch):
+    import pickle
+
+    lib = FakeLibrary()
+    interface = make_interface(monkeypatch, lib)
+    message = CANFDMessage(0x123, b"payload", timestamp=7)
+    try:
+        frame = interface._message_to_frame(message)
+        restored = interface._frame_to_message(frame)
+        assert type(restored) is CANFDMessage
+        assert type(interface.config) is CANFDConfigOptions
+        assert pickle.loads(pickle.dumps(restored)) == restored
+        assert backend.CanFDMsg is transport_backend.CanFDMsg
+        assert backend.CanFDConfig is transport_backend.CanFDConfig
+        assert backend.DevInfo is transport_backend.DevInfo
+    finally:
+        interface.close()
+
+
+def test_socketcan_models_errors_and_one_attempt_shutdown(monkeypatch):
+    from unittest.mock import Mock
+
+    import can
+    from linkerbot_transport.canfd import socketcan_backend as transport_socket
+
+    from linkerbot_arm.comm.canfd import SocketCANFDBackend
+
+    bus = Mock()
+    monkeypatch.setattr(
+        transport_socket,
+        "_read_link_state",
+        lambda channel: transport_socket._LinkState(
+            up=True, fd=True, bitrate=1000000, data_bitrate=5000000
+        ),
+    )
+    monkeypatch.setattr(transport_socket.can, "Bus", lambda **kw: bus)
+    interface = SocketCANFDBackend("vcan-test")
+    bus.recv.side_effect = [
+        can.Message(arbitration_id=1, data=b"payload", is_extended_id=True, is_fd=True),
+        None,
+    ]
+    messages = interface.receive()
+    assert messages == [CANFDMessage(1, b"payload", frame_type=4)]
+    assert type(messages[0]) is CANFDMessage
+    bus.send.side_effect = can.CanError("send failed")
+    with pytest.raises(CANError):
+        interface.send(messages[0])
+    with pytest.raises(ValidationError):
+        interface.send(messages[0], timeout_ms=-1)
+    bus.shutdown.side_effect = OSError("shutdown failed")
+    interface.close()
+    interface.close()
+    bus.shutdown.assert_called_once()
+    with pytest.raises(CANError):
+        interface.receive()

@@ -383,68 +383,150 @@ def test_send_after_stop_raises_runtime_error() -> None:
         dispatcher.send(CANFDMessage(arbitration_id=1, data=b""))
 
 
-def test_send_loop_does_not_busy_wait_by_default() -> None:
-    """SEND_INTERVAL_S=0 must not spin a CPU between frames.
+class _BatchInterface:
+    """Dispatcher-level fake interface that records both ``send`` and
+    ``send_batch`` calls so we can assert which path was taken."""
 
-    Regression guard against the prior `while time.monotonic() < deadline: pass`
-    that pegged a core and capped send throughput. We measure CPU time spent
-    by the *dispatcher* threads while idle (no work). With busy-wait, CPU time
-    rises linearly with wall time; with the fix, it stays near zero.
-    """
-    import os
-    import resource
+    def __init__(self) -> None:
+        self.send_calls: list[CANFDMessage] = []
+        self.batch_calls: list[list[CANFDMessage]] = []
+        self._gate: threading.Event | None = None
+        self._gate_count = 0
+        self.closed = False
+        self.incoming: queue.Queue = queue.Queue()
 
-    interface = FakeInterface()
+    def install_first_send_gate(self) -> threading.Event:
+        """Block the first send/send_batch call until the test releases it.
+
+        Used to keep the dispatcher's send thread busy while we queue more
+        frames behind it, so the test can deterministically observe the
+        batch on the next loop iteration.
+        """
+        self._gate = threading.Event()
+        return self._gate
+
+    def send(self, message: CANFDMessage, timeout_ms: int = 10) -> None:
+        if self._gate is not None and self._gate_count == 0:
+            self._gate_count += 1
+            self._gate.wait(timeout=2.0)
+        self.send_calls.append(message)
+
+    def send_batch(self, messages: list[CANFDMessage], timeout_ms: int = 10) -> None:
+        if self._gate is not None and self._gate_count == 0:
+            self._gate_count += 1
+            self._gate.wait(timeout=2.0)
+        self.batch_calls.append(list(messages))
+
+    def receive(self, max_frames: int = 64, timeout_ms: int = 10) -> list[CANFDMessage]:
+        try:
+            msg = self.incoming.get(timeout=timeout_ms / 1000.0)
+        except queue.Empty:
+            return []
+        return [msg]
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_failed_batch_fails_every_frame_receipt() -> None:
+    expected = CANError("batch outcome is unknown")
+
+    class _FailingBatchInterface(_BatchInterface):
+        def send_batch(
+            self, messages: list[CANFDMessage], timeout_ms: int = 10
+        ) -> None:
+            _ = timeout_ms
+            self.batch_calls.append(list(messages))
+            raise expected
+
+    interface = _FailingBatchInterface()
+    gate = interface.install_first_send_gate()
     dispatcher = CANFDMessageDispatcher(interface=interface)
+
     try:
-        wall_start = time.monotonic()
-        cpu_start = (
-            resource.getrusage(resource.RUSAGE_SELF).ru_utime
-            + resource.getrusage(resource.RUSAGE_SELF).ru_stime
-        )
-        # Send 100 frames; with busy-wait this would consume ~30 ms of CPU
-        # time in spinning. With the fix, idle time dominates.
-        message = CANFDMessage(arbitration_id=1, data=b"x")
-        for _ in range(100):
+        primer = dispatcher.send(CANFDMessage(arbitration_id=0, data=b"primer"))
+        deadline = time.monotonic() + 1.0
+        while interface._gate_count == 0 and time.monotonic() < deadline:
+            time.sleep(0.001)
+        receipts = [
+            dispatcher.send(CANFDMessage(arbitration_id=i, data=bytes([i])))
+            for i in range(1, 4)
+        ]
+        gate.set()
+
+        assert primer.result(timeout=1.0) is None
+        for receipt in receipts:
+            with pytest.raises(CANError) as raised:
+                receipt.result(timeout=1.0)
+            assert raised.value is expected
+        assert [
+            [message.arbitration_id for message in batch]
+            for batch in interface.batch_calls
+        ] == [[1, 2, 3]]
+    finally:
+        dispatcher.stop()
+
+
+def test_receipt_identity_callbacks_and_queue_overflow():
+    from linkerbot_arm.comm.canfd import CANFDSendReceipt
+
+    class GatedInterface(FakeInterface):
+        def send(self, message, timeout_ms=10):
+            entered.set()
+            assert release.wait(2)
+            super().send(message, timeout_ms)
+
+    class SmallDispatcher(CANFDMessageDispatcher):
+        SEND_QUEUE_SIZE = 1
+
+    entered = threading.Event()
+    release = threading.Event()
+    dispatcher = SmallDispatcher(interface=GatedInterface())
+    message = CANFDMessage(1, b"x")
+    try:
+        first = dispatcher.send(message)
+        assert entered.wait(1)
+        second = dispatcher.send(message)
+        completed = []
+        first.add_done_callback(completed.append)
+        assert type(first) is CANFDSendReceipt
+        assert first.running()
+        assert first.cancel() is False
+        with pytest.raises(queue.Full) as caught:
             dispatcher.send(message)
-        wait_until(lambda: len(interface.sent) == 100, timeout_s=2.0)
-        wall_elapsed = time.monotonic() - wall_start
-        cpu_elapsed = (
-            resource.getrusage(resource.RUSAGE_SELF).ru_utime
-            + resource.getrusage(resource.RUSAGE_SELF).ru_stime
-        ) - cpu_start
-        # CPU/wall ratio caps the fraction of time we're not blocking. On a
-        # busy machine the test sometimes sees CPU=wall due to other threads,
-        # but the busy-wait bug specifically produced ratios > 0.8 on every
-        # run. Allow generous headroom.
-        assert cpu_elapsed < max(0.1, wall_elapsed * 0.7), (
-            f"dispatcher consumed {cpu_elapsed:.3f}s CPU over {wall_elapsed:.3f}s "
-            "wall — busy-wait may have returned"
-        )
-        _ = os  # keep import used even if unused under future edits
+        assert type(caught.value) is queue.Full
+        assert caught.value.args == ()
+        release.set()
+        assert first.result(1) is None
+        assert second.result(1) is None
+        wait_until(lambda: completed == [first])
     finally:
+        release.set()
         dispatcher.stop()
 
 
-def test_error_backoff_recovers_within_milliseconds() -> None:
-    """Transient receive errors must recover quickly, not pause the bus.
-
-    Previously the backoff scaled 0.1 → 1.0 s and a single hiccup blocked
-    receive for hundreds of milliseconds. The redesign tightens this to
-    5–50 ms so an L30 user does not observe seconds-long stalls.
-    """
+@pytest.mark.parametrize(
+    "error", [ValidationError("bad frame"), StateError("device unavailable")]
+)
+def test_receipt_wraps_non_can_backend_errors(error):
     interface = FakeInterface()
-    dispatcher = CANFDMessageDispatcher(interface=interface, max_consecutive_errors=5)
-    received: list[CANFDMessage] = []
-    message = CANFDMessage(arbitration_id=1, data=b"x")
-    try:
-        dispatcher.subscribe(received.append)
-        # Inject one transient error then a real message; with old backoff the
-        # message would take >100 ms to surface. New backoff should deliver
-        # well under 100 ms even with one error.
-        interface.incoming.put(CANError("transient"))
-        time.sleep(0.001)
-        interface.incoming.put(message)
-        wait_until(lambda: received == [message], timeout_s=0.2)
-    finally:
-        dispatcher.stop()
+    interface.send_error = error
+    with CANFDMessageDispatcher(interface=interface) as dispatcher:
+        receipt = dispatcher.send(CANFDMessage(1, b"x"))
+        with pytest.raises(CANError, match="background send failed") as caught:
+            receipt.result(1)
+        assert caught.value.__cause__ is error
+
+
+def test_stop_preserves_best_effort_close_error(caplog):
+    class FailingClose(FakeInterface):
+        def close(self):
+            super().close()
+            raise OSError("close failed")
+
+    interface = FailingClose()
+    dispatcher = CANFDMessageDispatcher(interface=interface)
+    dispatcher.stop()
+    dispatcher.stop()
+    assert interface.close_calls == 1
+    assert "CANFD interface close failed" in caplog.text

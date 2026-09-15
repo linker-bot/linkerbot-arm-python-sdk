@@ -5,6 +5,8 @@
 - Import the SDK through `linkerbot_arm`. This distribution does not provide the old
   `linkerbot.*` paths; see the [migration guide](docs/MIGRATION.md).
 - Require `linkerbot-transport[can]==1.0.0` for CAN communication.
+- Share CAN FD I/O and vendor-library ownership with transport, retaining arm's
+  existing imports, message models, `Future[None]` receipts and close behavior.
 - Keep arm dispatcher calls compatible: `send()` returns `None`, queue overflow raises
   `queue.Full`, and sending after a bus fault raises the arm `CANError`.
 - Re-export `CanInterface` from transport. Arm exception names and positional arguments

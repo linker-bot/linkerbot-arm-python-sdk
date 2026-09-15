@@ -1,56 +1,81 @@
-"""Threaded CANFD message dispatcher."""
+"""Arm CAN FD call compatibility over transport's workers and send queue.
 
-import logging
-import queue
+Keep the original Future[None], arm exceptions and bounded best-effort stop.
+Transport performs all frame dispatch, batching, receive and send operations.
+"""
+
 import threading
-import time
 from collections.abc import Callable
 from concurrent.futures import Future
-from dataclasses import dataclass
 from pathlib import Path
+
+from linkerbot_transport.canfd import dispatcher as _dispatcher
+from linkerbot_transport.canfd.dispatcher import (
+    DEFAULT_MAX_CONSECUTIVE_ERRORS,
+    THREAD_JOIN_TIMEOUT_S,
+    _QueuedSend,
+)
+from linkerbot_transport.canfd.dispatcher import (
+    ERROR_BACKOFF_BASE_S as ERROR_BACKOFF_BASE_S,
+)
+from linkerbot_transport.canfd.dispatcher import (
+    ERROR_BACKOFF_MAX_S as ERROR_BACKOFF_MAX_S,
+)
+from linkerbot_transport.canfd.dispatcher import (
+    RECEIVE_BATCH_SIZE as RECEIVE_BATCH_SIZE,
+)
+from linkerbot_transport.canfd.dispatcher import (
+    RECEIVE_TIMEOUT_MS as RECEIVE_TIMEOUT_MS,
+)
+from linkerbot_transport.canfd.dispatcher import (
+    SEND_QUEUE_GET_TIMEOUT_S as SEND_QUEUE_GET_TIMEOUT_S,
+)
+from linkerbot_transport.canfd.dispatcher import (
+    dataclass as dataclass,
+)
+from linkerbot_transport.canfd.dispatcher import (
+    logging as logging,
+)
+from linkerbot_transport.canfd.dispatcher import (
+    queue as queue,
+)
+from linkerbot_transport.canfd.dispatcher import (
+    time as time,
+)
+from linkerbot_transport.errors import TransportError
 
 from linkerbot_arm.exceptions import CANError, StateError, ValidationError
 
 from .ctypes_backend import CANFDInterface
 from .types import CANFDBackend, CANFDConfigOptions, CANFDMessage
 
-DEFAULT_MAX_CONSECUTIVE_ERRORS = 10
-RECEIVE_BATCH_SIZE = 64
-RECEIVE_TIMEOUT_MS = 10
-SEND_QUEUE_GET_TIMEOUT_S = 0.01
-THREAD_JOIN_TIMEOUT_S = 1.0
-# Tight error backoff: a transient USB hiccup should recover in milliseconds,
-# not pause the whole bus for seconds. Previously 0.1/1.0 made a single USB
-# stutter cascade into ~5.5 s of bus silence before the dispatcher gave up.
-ERROR_BACKOFF_BASE_S = 0.005
-ERROR_BACKOFF_MAX_S = 0.05
+
+class _PreservedFailure(BaseException):
+    def __init__(self, error: BaseException) -> None:
+        self.error = error
 
 
 class CANFDSendReceipt(Future[None]):
-    """Future completed after one queued CAN FD frame is physically sent."""
+    """Original, non-cancellable queued-send Future with transport tracker hooks."""
+
+    def _dispatch(self) -> None:
+        self.set_result(None)
+
+    def _fail(self, error: BaseException) -> None:
+        if isinstance(error, _PreservedFailure):
+            error = error.error
+        elif not isinstance(error, CANError):
+            if isinstance(error, TransportError):
+                mapped = CANError(*error.args)
+                mapped.__cause__ = error.__cause__ or error.cause or error
+                error = mapped
+            else:
+                error = _send_error(error, "CANFD background send failed")
+        self.set_exception(error)
 
 
-@dataclass(frozen=True, slots=True)
-class _QueuedSend:
-    message: CANFDMessage
-    receipt: CANFDSendReceipt
-
-
-class CANFDMessageDispatcher:
-    """Thread-safe CANFD dispatcher with publish-subscribe message routing."""
-
-    SEND_QUEUE_SIZE = 2000
-    # Default off: the vendor USB stack already paces transmits, and any
-    # positive interval ends up sleeping the send thread. Subclasses or callers
-    # that want explicit pacing can override this class attribute. The legacy
-    # 300 us CPU busy-wait has been removed entirely.
-    SEND_INTERVAL_S = 0.0
-    # Maximum frames coalesced into a single vendor call when the backend
-    # exposes ``send_batch``. 32 leaves substantial headroom under the
-    # vendor's 100-frame ceiling while keeping per-batch latency bounded.
-    # Override on a subclass if a workload needs different latency/throughput
-    # tradeoffs.
-    SEND_BATCH_MAX = 32
+class CANFDMessageDispatcher(_dispatcher.CANFDMessageDispatcher):
+    """Delegate workers while preserving the existing arm dispatcher API."""
 
     def __init__(
         self,
@@ -62,226 +87,28 @@ class CANFDMessageDispatcher:
         max_consecutive_errors: int = DEFAULT_MAX_CONSECUTIVE_ERRORS,
         interface: CANFDBackend | None = None,
     ) -> None:
-        """Initialize dispatcher threads for one CANFD interface.
-
-        ``interface`` accepts any object satisfying ``CANFDBackend`` (the
-        ctypes ``CANFDInterface`` and the new SocketCAN FD backend both do).
-        When omitted, the dispatcher constructs a vendor ``CANFDInterface``
-        using ``device_index`` / ``channel_index`` / ``library_path`` / ``config``,
-        preserving the original behaviour.
-        """
         if (
             not isinstance(max_consecutive_errors, int)
             or isinstance(max_consecutive_errors, bool)
             or max_consecutive_errors <= 0
         ):
             raise ValidationError("max_consecutive_errors must be a positive int")
-
-        self._interface: CANFDBackend = (
-            interface
-            if interface is not None
-            else CANFDInterface(
-                device_index=device_index,
-                channel_index=channel_index,
-                library_path=library_path,
-                config=config,
+        if interface is None:
+            interface = CANFDInterface(
+                device_index,
+                channel_index,
+                library_path,
+                config,
             )
+        super().__init__(
+            device_index,
+            channel_index,
+            library_path,
+            config,
+            on_bus_error,
+            max_consecutive_errors,
+            interface,
         )
-        self._subscribers: list[Callable[[CANFDMessage], None]] = []
-        # subscribe_filter targets are only invoked when their predicate
-        # returns True. Predicates are still scanned linearly, but unrelated
-        # clients avoid the more expensive frame parsing and callback path.
-        self._filtered_subscribers: list[
-            tuple[
-                Callable[[CANFDMessage], bool],
-                Callable[[CANFDMessage], None],
-            ]
-        ] = []
-        self._subscribers_lock = threading.Lock()
-        self._running = True
-        self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self._send_queue: queue.Queue[_QueuedSend] = queue.Queue(
-            maxsize=self.SEND_QUEUE_SIZE
-        )
-        self._receipt_lock = threading.Lock()
-        self._pending_receipts: set[CANFDSendReceipt] = set()
-        self._on_bus_error = on_bus_error
-        self._max_consecutive_errors = max_consecutive_errors
-        self._bus_error: Exception | None = None
-        self._error_reported = False
-        self._error_lock = threading.Lock()
-        self._close_lock = threading.Lock()
-        self._interface_closed = False
-        self._recv_thread = threading.Thread(
-            target=self._recv_loop, daemon=True, name="CANFDMessageDispatcher.recv_loop"
-        )
-        self._send_thread = threading.Thread(
-            target=self._send_loop, daemon=True, name="CANFDMessageDispatcher.send_loop"
-        )
-        self._recv_thread.start()
-        self._send_thread.start()
-
-    @property
-    def interface(self) -> CANFDBackend:
-        """CANFD backend this dispatcher is bound to."""
-        return self._interface
-
-    def _handle_bus_error(self, error: Exception) -> None:
-        with self._error_lock:
-            if self._error_reported:
-                return
-            self._error_reported = True
-            self._running = False
-            self._bus_error = error
-        self._fail_all_receipts(_send_error(error, "CANFD bus unavailable"))
-        self._logger.error(f"CANFD bus fatal error, stopping dispatcher: {error}")
-        if self._on_bus_error is not None:
-            try:
-                self._on_bus_error(error)
-            except Exception as callback_error:
-                self._logger.error(f"Error in on_bus_error callback: {callback_error}")
-
-    def _recv_loop(self) -> None:
-        consecutive_errors = 0
-        while self._running:
-            try:
-                messages = self._interface.receive(
-                    max_frames=RECEIVE_BATCH_SIZE,
-                    timeout_ms=RECEIVE_TIMEOUT_MS,
-                )
-                consecutive_errors = 0
-                for message in messages:
-                    self._dispatch(message)
-            except Exception as error:
-                consecutive_errors += 1
-                if consecutive_errors >= self._max_consecutive_errors:
-                    self._logger.error(
-                        "CANFD receive failed after %d consecutive errors: %s",
-                        consecutive_errors,
-                        error,
-                    )
-                    self._handle_bus_error(error)
-                    return
-                self._logger.warning(
-                    "CANFD receive error (%d/%d): %s",
-                    consecutive_errors,
-                    self._max_consecutive_errors,
-                    error,
-                )
-                time.sleep(_error_backoff_s(consecutive_errors))
-
-    def _dispatch(self, message: CANFDMessage) -> None:
-        with self._subscribers_lock:
-            subscribers = self._subscribers[:]
-            filtered = self._filtered_subscribers[:]
-        for callback in subscribers:
-            try:
-                callback(message)
-            except Exception as error:
-                self._logger.error("Error in callback: %s", error)
-        for predicate, callback in filtered:
-            try:
-                if predicate(message):
-                    callback(message)
-            except Exception as error:
-                self._logger.error("Error in filtered callback: %s", error)
-
-    def subscribe(self, callback: Callable[[CANFDMessage], None]) -> None:
-        """Register a callback to receive every CANFD message.
-
-        Equivalent to ``subscribe_filter(lambda _: True, callback)`` but
-        skips the per-message predicate call.
-        """
-        with self._subscribers_lock:
-            if callback not in self._subscribers:
-                self._subscribers.append(callback)
-
-    def subscribe_filter(
-        self,
-        predicate: Callable[[CANFDMessage], bool],
-        callback: Callable[[CANFDMessage], None],
-    ) -> None:
-        """Register a callback gated by a per-message predicate.
-
-        ``callback`` is invoked only when ``predicate(message)`` returns
-        ``True``. Predicates are evaluated by the receive thread, so they
-        must be cheap and non-blocking. The L30 client uses this to filter
-        by ``(dst_id, src_id)`` before doing the full frame parse.
-        """
-        with self._subscribers_lock:
-            entry = (predicate, callback)
-            if entry not in self._filtered_subscribers:
-                self._filtered_subscribers.append(entry)
-
-    def unsubscribe(self, callback: Callable[[CANFDMessage], None]) -> None:
-        """Unregister a CANFD message callback (either plain or filtered)."""
-        with self._subscribers_lock:
-            if callback in self._subscribers:
-                self._subscribers.remove(callback)
-            self._filtered_subscribers = [
-                (predicate, existing)
-                for predicate, existing in self._filtered_subscribers
-                if existing != callback
-            ]
-
-    def _send_loop(self) -> None:
-        consecutive_errors = 0
-        # Detect the optional batch path once; backends that don't implement
-        # send_batch fall back to per-frame send transparently.
-        send_batch = getattr(self._interface, "send_batch", None)
-        while self._running:
-            try:
-                first = self._send_queue.get(timeout=SEND_QUEUE_GET_TIMEOUT_S)
-            except queue.Empty:
-                continue
-            # Opportunistic batching: drain whatever frames are already queued
-            # up to SEND_BATCH_MAX, but never block — if there's only one
-            # frame ready, send it immediately rather than introducing latency
-            # by waiting for more.
-            batch: list[_QueuedSend] = [first]
-            if send_batch is not None and self.SEND_BATCH_MAX > 1:
-                while len(batch) < self.SEND_BATCH_MAX:
-                    try:
-                        batch.append(self._send_queue.get_nowait())
-                    except queue.Empty:
-                        break
-            try:
-                if send_batch is not None and len(batch) > 1:
-                    send_batch([queued.message for queued in batch])
-                else:
-                    # Either backend lacks batch support, or only one frame
-                    # was ready — both paths fall through to per-frame send.
-                    for queued in batch:
-                        self._interface.send(queued.message)
-                consecutive_errors = 0
-                for queued in batch:
-                    self._complete_receipt(queued.receipt)
-                # Optional pacing for backward compatibility; default 0 means
-                # rely entirely on the vendor USB stack. A previous version
-                # spun `while time.monotonic() < deadline: pass` here which
-                # pegged one CPU core and capped throughput at ~3300 frames/s.
-                if self.SEND_INTERVAL_S > 0:
-                    time.sleep(self.SEND_INTERVAL_S)
-            except Exception as error:
-                send_error = _send_error(error, "CANFD background send failed")
-                for queued in batch:
-                    self._fail_receipt(queued.receipt, send_error)
-                consecutive_errors += 1
-                if consecutive_errors >= self._max_consecutive_errors:
-                    self._logger.error(
-                        "CANFD send failed after %d consecutive errors: %s",
-                        consecutive_errors,
-                        error,
-                    )
-                    self._handle_bus_error(error)
-                    return
-                self._logger.warning(
-                    "CANFD send error (%d/%d): %s",
-                    consecutive_errors,
-                    self._max_consecutive_errors,
-                    error,
-                )
-                time.sleep(_error_backoff_s(consecutive_errors))
 
     def send(self, message: CANFDMessage) -> CANFDSendReceipt:
         """Enqueue a frame and return its physical-transmission receipt.
@@ -351,48 +178,39 @@ class CANFDMessageDispatcher:
             self._subscribers.clear()
             self._filtered_subscribers.clear()
 
-    def __enter__(self) -> "CANFDMessageDispatcher":
-        """Enter the context manager."""
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Exit the context manager and stop the dispatcher."""
-        self.stop()
+    def _handle_bus_error(self, error: Exception) -> None:
+        with self._error_lock:
+            if self._error_reported:
+                return
+            self._error_reported = True
+            self._running = False
+            self._bus_error = error
+        self._fail_all_receipts(_send_error(error, "CANFD bus unavailable"))
+        self._logger.error(f"CANFD bus fatal error, stopping dispatcher: {error}")
+        if self._on_bus_error is not None:
+            try:
+                self._on_bus_error(error)
+            except Exception as callback_error:
+                self._logger.error(f"Error in on_bus_error callback: {callback_error}")
 
     def _register_receipt(self, receipt: CANFDSendReceipt) -> None:
-        with self._receipt_lock:
-            receipt.set_running_or_notify_cancel()
-            self._pending_receipts.add(receipt)
+        receipt.set_running_or_notify_cancel()
+        self._receipts.register(receipt)
 
     def _discard_receipt(self, receipt: CANFDSendReceipt) -> None:
-        with self._receipt_lock:
-            self._pending_receipts.discard(receipt)
+        self._receipts.discard(receipt)
 
     def _complete_receipt(self, receipt: CANFDSendReceipt) -> None:
-        if self._take_receipt(receipt):
-            receipt.set_result(None)
+        self._receipts.succeed(receipt)
 
     def _fail_receipt(self, receipt: CANFDSendReceipt, error: BaseException) -> None:
-        if self._take_receipt(receipt):
-            receipt.set_exception(error)
+        self._receipts.fail(receipt, _PreservedFailure(error))
 
     def _take_receipt(self, receipt: CANFDSendReceipt) -> bool:
-        with self._receipt_lock:
-            if receipt not in self._pending_receipts:
-                return False
-            self._pending_receipts.remove(receipt)
-            return True
+        return self._receipts._take(receipt)
 
     def _fail_all_receipts(self, error: BaseException) -> None:
-        with self._receipt_lock:
-            receipts = tuple(self._pending_receipts)
-            self._pending_receipts.clear()
-        for receipt in receipts:
-            receipt.set_exception(error)
-
-
-def _error_backoff_s(consecutive_errors: int) -> float:
-    return min(ERROR_BACKOFF_BASE_S * consecutive_errors, ERROR_BACKOFF_MAX_S)
+        self._receipts.fail_all(_PreservedFailure(error))
 
 
 def _send_error(error: BaseException, operation: str) -> CANError:
@@ -401,3 +219,36 @@ def _send_error(error: BaseException, operation: str) -> CANError:
     wrapped = CANError(f"{operation}: {error}")
     wrapped.__cause__ = error
     return wrapped
+
+
+def __getattr__(name):
+    return getattr(_dispatcher, name)
+
+
+# Preserve the pre-cleanup deep-module star imports as well as explicit imports.
+__all__ = [
+    "CANError",
+    "CANFDBackend",
+    "CANFDConfigOptions",
+    "CANFDInterface",
+    "CANFDMessage",
+    "CANFDMessageDispatcher",
+    "CANFDSendReceipt",
+    "Callable",
+    "DEFAULT_MAX_CONSECUTIVE_ERRORS",
+    "ERROR_BACKOFF_BASE_S",
+    "ERROR_BACKOFF_MAX_S",
+    "Future",
+    "Path",
+    "RECEIVE_BATCH_SIZE",
+    "RECEIVE_TIMEOUT_MS",
+    "SEND_QUEUE_GET_TIMEOUT_S",
+    "StateError",
+    "THREAD_JOIN_TIMEOUT_S",
+    "ValidationError",
+    "dataclass",
+    "logging",
+    "queue",
+    "threading",
+    "time",
+]

@@ -39,15 +39,28 @@ def test_all_original_signatures(relative, record):
 
     collect(tree.body)
     for name, signature in record["signatures"].items():
-        if relative == "linkerbot/comm/can/can.py" and name not in signatures:
+        if (
+            relative == "linkerbot/comm/can/can.py"
+            or relative.startswith("linkerbot/comm/canfd/")
+        ) and name not in signatures:
             # Delegated methods still have to match the frozen source contract.
             # Resolve the actual inherited implementation, including properties;
             # do not regenerate the baseline or exempt the dispatcher from it.
-            obj = importlib.import_module("linkerbot_arm.comm.can.can")
+            module = relative.removesuffix(".py").replace("/", ".")
+            obj = importlib.import_module(
+                module.replace("linkerbot", "linkerbot_arm", 1)
+            )
             for part in name.split("."):
-                obj = inspect.getattr_static(obj, part)
+                obj = (
+                    getattr(obj, part)
+                    if inspect.ismodule(obj)
+                    else inspect.getattr_static(obj, part)
+                )
             if isinstance(obj, property):
                 obj = obj.fget
+            elif isinstance(obj, (classmethod, staticmethod)):
+                obj = obj.__func__
+            obj = inspect.unwrap(obj)
             delegated = ast.parse(textwrap.dedent(inspect.getsource(obj)))
             prefix = name.rsplit(".", 1)[0] + "." if "." in name else ""
             collect(delegated.body, prefix)

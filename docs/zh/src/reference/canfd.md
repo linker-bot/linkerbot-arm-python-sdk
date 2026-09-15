@@ -21,3 +21,13 @@ assert dlc_to_length(9) == 12
 不传时使用厂商 `CANFDInterface`，接受 `device_index`、`channel_index`、`library_path`、`config`。
 厂商模式需要另行提供对应系统和架构的动态库；导入模块本身不加载硬件动态库。
 `SocketCANFDBackend` 通过 python-can 使用 Linux SocketCAN。
+
+`send(message)` 返回 `CANFDSendReceipt`，兼容 `concurrent.futures.Future`。
+成功入队后不能取消；`receipt.result(timeout=...)` 在实际发送成功后返回 `None`，
+发送失败抛出 arm 的 `CANError`。队列满时 `send()` 抛出 `queue.Full`；
+停止 dispatcher 时，尚未完成的回执抛出 arm 的 `StateError`。
+
+`stop()` 等待收发线程后关闭接口；线程未按时结束会记录警告并返回，可稍后再次调用。
+接口关闭异常会记录警告。直接调用厂商 `CANFDInterface.close()` 时，关闭失败抛出
+`CANError`，但仍释放库引用且不再重试；`SocketCANFDBackend.close()` 保持尽力关闭、
+不传播关闭错误的行为。arm 的这些约定独立于 transport 高层生命周期接口。
