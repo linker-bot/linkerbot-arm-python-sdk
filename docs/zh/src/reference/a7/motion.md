@@ -5,7 +5,7 @@
 将所有关节移动到零位。
 
 ```python
-from linkerbot import A7
+from linkerbot_arm import A7
 
 with A7(side="left", interface_name="can0") as arm:
     arm.enable()
@@ -22,7 +22,7 @@ with A7(side="left", interface_name="can0") as arm:
 通过发送每个关节的目标角度，控制机械臂运动。
 
 ```python
-from linkerbot import A7
+from linkerbot_arm import A7
 
 with A7(side="left", interface_name="can0") as arm:
     arm.enable()
@@ -44,7 +44,7 @@ with A7(side="left", interface_name="can0") as arm:
 通过发送机械臂 TCP 6D 位姿（x, y, z, rx, ry, rz），控制机械臂运动。通过逆运动学求解目标关节角度后执行关节运动，末端路径**不保证**为直线。
 
 ```python
-from linkerbot import A7, Pose
+from linkerbot_arm import A7, Pose
 
 with A7(side="left", interface_name="can0") as arm:
     arm.enable()
@@ -54,7 +54,7 @@ with A7(side="left", interface_name="can0") as arm:
 
 **参数：**
 
-- `target_pose`: 目标 TCP 位姿，类型 `linkerbot.arm.Pose`
+- `target_pose`: 目标 TCP 位姿，类型 `linkerbot_arm.arm.Pose`
 - `current_angles`: IK 初始猜测关节角度，类型 `list[float] | None`，`None` 时从电机读取，
 - `blocking`: 是否阻塞直到运动完成，类型 `bool`，默认 `True`，
 
@@ -68,7 +68,7 @@ with A7(side="left", interface_name="can0") as arm:
 通过发送机械臂 TCP 6D 位姿（x, y, z, rx, ry, rz），控制机械臂**直线**运动。末端沿笛卡尔空间直线运动，位置使用梯形速度规划，姿态使用球面线性插值（Slerp）。`move_l` 始终阻塞直到运动完成，无 `blocking` 参数。
 
 ```python
-from linkerbot import A7, Pose
+from linkerbot_arm import A7, Pose
 
 with A7(side="left", interface_name="can0") as arm:
     arm.enable()
@@ -120,7 +120,7 @@ arm.wait_motion_done()  # 等待运动结束
 ### 非阻塞运动与等待
 
 ```python
-from linkerbot import A7, Pose
+from linkerbot_arm import A7, Pose
 
 with A7(side="left", interface_name="can0") as arm:
     arm.enable()

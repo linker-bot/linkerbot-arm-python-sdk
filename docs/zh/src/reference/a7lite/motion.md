@@ -5,7 +5,7 @@
 将所有关节移动到零位（`[0.0] * 7`）。
 
 ```python
-from linkerbot import A7lite
+from linkerbot_arm import A7lite
 
 with A7lite(side="left", interface_name="can0") as arm:
     arm.enable()
@@ -22,7 +22,7 @@ with A7lite(side="left", interface_name="can0") as arm:
 通过发送每个关节的目标角度，控制机械臂运动。
 
 ```python
-from linkerbot import A7lite
+from linkerbot_arm import A7lite
 
 with A7lite(side="left", interface_name="can0") as arm:
     arm.enable()
@@ -44,8 +44,8 @@ with A7lite(side="left", interface_name="can0") as arm:
 通过发送机械臂 TCP 6D 位姿（x, y, z, rx, ry, rz），控制机械臂运动。通过逆运动学求解目标关节角度后执行关节运动，末端路径**不保证**为直线。
 
 ```python
-from linkerbot import A7lite
-from linkerbot import Pose
+from linkerbot_arm import A7lite
+from linkerbot_arm import Pose
 
 with A7lite(side="left", interface_name="can0") as arm:
     arm.enable()
@@ -69,7 +69,7 @@ with A7lite(side="left", interface_name="can0") as arm:
 通过发送机械臂 TCP 6D 位姿（x, y, z, rx, ry, rz），控制机械臂**直线**运动。末端沿笛卡尔空间直线运动，位置使用梯形速度规划，姿态使用球面线性插值（Slerp）。`move_l` 始终阻塞直到运动完成，无 `blocking` 参数。
 
 ```python
-from linkerbot import A7lite, Pose
+from linkerbot_arm import A7lite, Pose
 
 with A7lite(side="left", interface_name="can0") as arm:
     arm.enable()
@@ -121,7 +121,7 @@ arm.wait_motion_done()  # 等待运动结束
 ### 非阻塞运动与等待
 
 ```python
-from linkerbot import A7lite, Pose
+from linkerbot_arm import A7lite, Pose
 
 with A7lite(side="left", interface_name="can0") as arm:
     arm.enable()

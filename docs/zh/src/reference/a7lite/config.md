@@ -5,7 +5,7 @@
 设置 7 个关节的速度和加速度限制，影响 `move_j`、`move_p` 等运动。
 
 ```python
-from linkerbot import A7lite
+from linkerbot_arm import A7lite
 
 with A7lite(side="left", interface_name="can0") as arm:
     arm.enable()
@@ -27,7 +27,7 @@ with A7lite(side="left", interface_name="can0") as arm:
 设置 7 个关节的 PID 参数。
 
 ```python
-from linkerbot import A7lite
+from linkerbot_arm import A7lite
 
 with A7lite(side="left", interface_name="can0") as arm:
     arm.set_position_kps([100.0] * 7)
@@ -59,7 +59,7 @@ with A7lite(side="left", interface_name="can0") as arm:
 ### 设置 PID 参数、速度和加速度限制
 
 ```python
-from linkerbot import A7lite
+from linkerbot_arm import A7lite
 
 with A7lite(side="left", interface_name="can0") as arm:
     arm.set_position_kps([80.0] * 7)

@@ -22,7 +22,7 @@ print(f"TCP: ({pose.x:.3f}, {pose.y:.3f}, {pose.z:.3f})")
 根据 TCP 位姿求解关节角度。
 
 ```python
-from linkerbot import Pose
+from linkerbot_arm import Pose
 
 target = Pose(x=0.0, y=0.33, z=-0.25, rx=1.85, ry=0.0, rz=-1.57)
 angles = arm.inverse_kinematics(target)

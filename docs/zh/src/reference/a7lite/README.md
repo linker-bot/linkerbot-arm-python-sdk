@@ -5,7 +5,7 @@ A7 Lite 机械臂文档。
 ## 快速开始
 
 ```python
-from linkerbot import A7lite
+from linkerbot_arm import A7lite
 
 with A7lite(
     side="left",
@@ -30,9 +30,7 @@ with A7lite(
 
 **前置依赖：** A7 Lite 依赖 Pinocchio 进行运动学计算，需要安装 `kinetix` 可选依赖：
 
-```bash
-pip install linkerbot-arm[kinetix]
-```
+安装方法见[安装与环境配置](../../../../INSTALLATION.md)。
 
 > **Windows 用户**：Pinocchio 不支持 pip 安装，请使用 `conda install pinocchio -c conda-forge`。
 
@@ -42,7 +40,7 @@ pip install linkerbot-arm[kinetix]
 - `ValueError`: `side` 或 `world_frame` 参数非法
 - `StateError`: 电机未响应 CAN 总线 / 上报数据超时
 
-> **URDF 文件路径**：`src/linkerbot/arm/kinetix/urdf/a7_lite__left.urdf` 和 `a7_lite__right.urdf`
+> **URDF 文件路径**：`src/linkerbot_arm/arm/kinetix/urdf/a7_lite__left.urdf` 和 `a7_lite__right.urdf`
 
 ## 坐标系说明
 
@@ -129,7 +127,7 @@ Maestro 坐标系，相对 URDF 坐标系进行了两步变换，如图所示：
 `Pose` 表示 TCP（Tool Center Point，工具中心点）位姿，是一个 Pydantic 模型，包含 6 个字段：
 
 ```python
-from linkerbot import Pose
+from linkerbot_arm import Pose
 
 pose = Pose(x=0.3, y=0.1, z=0.5, rx=0.0, ry=0.5, rz=0.0)
 ```
@@ -166,10 +164,10 @@ pose = Pose(x=0.3, y=0.1, z=0.5, rx=0.0, ry=0.5, rz=0.0)
 
 当前仅支持 PP（Profile Position）模式，调用 `enable()` 时会自动设置。
 
-`ControlMode` 枚举可从 `linkerbot` 导入：
+`ControlMode` 枚举可从 `linkerbot_arm` 导入：
 
 ```python
-from linkerbot import ControlMode
+from linkerbot_arm import ControlMode
 ```
 
 ## CAN 总线

@@ -7,9 +7,13 @@
 - `tests/compat/upstream_api.json` 固定初始来源。`tools/check_upstream.py` 用于确认初次提取，
   后续有意修改实现后它可能报告差异；日常兼容性门禁使用 pytest 中的 API 测试。
 - 共享通信代码与完整 SDK 的修复通过独立 commit 审阅、回归和按需移植，不自动复制覆盖。
+- transport 当前固定为 `1.0.0`。升级前验证 arm 接口、收发、关闭、ROS2 adapter 和独立 wheel，
+  再一起更新依赖约束、CI 固定 commit 与安装文档；已发布的同版本包不得覆盖。
+- `docs/` 维护安装、快速开始、API 和用户迁移说明。临时 TODO、审查与过程记录放在
+  本地 `.local-notes/`，该目录不纳入 Git 和发行包，用户文档不链接到该目录。
 
 ```bash
-# 先安装 transport 1.x；固定版本与包源认证方式见 docs/PHASE3_TRANSPORT.md。
+# 先按 docs/INSTALLATION.md 安装 transport 1.0.0。
 python -m pip install -e '.[kinetix,test,dev]'
 python -m pytest
 python -m build
@@ -23,6 +27,6 @@ CAN_INTERFACE=can0 ARM_SIDE=left python -m pytest tests/arm/a7 -m 'hardware and 
 
 修改打包或 URDF 后，必须在源码目录之外安装 wheel 验证导入和六个模型的加载。
 修改 ROS2 接入后，在安装新 SDK 的环境运行 ROS2 仓库 `tests/`；带 rclpy 的环境会额外运行真实节点测试。
-当前阶段可运行 `python tools/check_ros2_adapter.py ../linker_arm_ros2` 检查真实 adapter；
-该工具的临时导入映射不代表正式 loader 已完成迁移。
+可运行 `python tools/check_ros2_adapter.py ../linker_arm_ros2` 检查真实 adapter 的调用契约；
+该工具使用测试进程内的导入映射，不能替代实际节点的加载验证。
 发布前记录 Python、NumPy、SciPy、Pinocchio 版本以及真机验收结果，并更新 CHANGELOG。

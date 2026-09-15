@@ -5,7 +5,7 @@
 设置 7 个关节的速度和加速度限制。
 
 ```python
-from linkerbot import A7
+from linkerbot_arm import A7
 
 with A7(side="left", interface_name="can0") as arm:
     arm.enable()
@@ -27,7 +27,7 @@ with A7(side="left", interface_name="can0") as arm:
 设置 7 个关节的 PID 参数。
 
 ```python
-from linkerbot import A7
+from linkerbot_arm import A7
 
 with A7(side="left", interface_name="can0") as arm:
     arm.set_position_kps([100.0] * 7)
@@ -57,7 +57,7 @@ with A7(side="left", interface_name="can0") as arm:
 ### 设置 PID 参数和速度与加速度限制后运动
 
 ```python
-from linkerbot import A7
+from linkerbot_arm import A7
 
 with A7(side="left", interface_name="can0") as arm:
     arm.set_position_kps([80.0] * 7)
@@ -75,7 +75,7 @@ with A7(side="left", interface_name="can0") as arm:
 调用 `save_params()` 将当前 PID、速度、加速度等参数写入电机闪存，断电后仍然生效。
 
 ```python
-from linkerbot import A7
+from linkerbot_arm import A7
 
 with A7(side="left", interface_name="can0") as arm:
     arm.set_position_kps([80.0] * 7)

@@ -5,7 +5,7 @@
 一次性读取完整的机械臂状态，包含 TCP 位姿、所有关节的角度、速度、加速度、扭矩和温度。
 
 ```python
-from linkerbot import A7
+from linkerbot_arm import A7
 
 with A7(side="left", interface_name="can0") as arm:
     arm.enable()
@@ -48,7 +48,7 @@ with A7(side="left", interface_name="can0") as arm:
 除 `get_state()` 外，以下方法分别返回单一类型的状态数据，均返回 7 个关节的列表（`get_pose()` 除外）。
 
 ```python
-from linkerbot import A7
+from linkerbot_arm import A7
 
 with A7(side="left", interface_name="can0") as arm:
     arm.enable()
@@ -89,8 +89,8 @@ A7 使用轮询模式采集传感器数据，`get_*()` 返回的是上一次轮�
 如需更低延迟，可通过 `start_polling()` 方法自定义不同传感器的轮询间隔：
 
 ```python
-from linkerbot import A7
-from linkerbot.arm.a7 import SensorType
+from linkerbot_arm import A7
+from linkerbot_arm.arm.a7 import SensorType
 
 with A7(side="left", interface_name="can0") as arm:
     arm.start_polling(

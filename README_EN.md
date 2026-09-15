@@ -1,33 +1,45 @@
 # LinkerBot Arm Python SDK
 
-Standalone A7, A7lite and P7 SDK extracted from `linkerbot-python-sdk` 0.5.4.
-The 0.6.0 development distribution is named `linkerbot-arm` and imports use `linkerbot_arm`.
-Legacy `linkerbot.*` forwarding belongs to the planned aggregate package. ROS2 loader
-migration is still pending; this branch is not yet a drop-in replacement for the old SDK.
+Python SDK for **A7, A7lite and P7** robotic arms, with joint control, feedback and
+forward/inverse kinematics. Requires Python 3.10+. Install `linkerbot-arm` and import `linkerbot_arm`.
+
+## Installation
+
+Install `linkerbot-transport==1.0.0` using the [installation guide](docs/INSTALLATION.md),
+then run from this repository:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-# Requires Gitea SSH access; reviewed Transport 1.0.0 source.
-python -m pip install 'linkerbot-transport[can] @ git+ssh://git@git.linkerhub.work:12222/zhuzhixiang/linkerbot-transport.git@e8c8bf7cc424cffa0234e659537c64f102b22426'
 python -m pip install -e '.[kinetix]'
 ```
 
+All three arm constructors require Pinocchio. Use the `kinetix` extra for standalone
+Python environments. ROS2 environments should use compatible system NumPy, SciPy
+and Pinocchio packages; see the [ROS2 guide](docs/ROS2.md).
+
+## Quick start
+
+[Configure CAN](docs/zh/src/reference/can.md), connect and power the arm, then run:
+
 ```python
-from linkerbot_arm import A7, A7lite, P7, Pose, ControlMode
-from linkerbot_arm.arm import State, WayPoint
+from linkerbot_arm import A7
+
+with A7(side="left", interface_name="can0") as arm:
+    print(arm.get_angles())  # Seven joint angles in radians
+    print(arm.get_pose())   # TCP pose
 ```
 
-All three arm constructors require Pinocchio. Install the `kinetix` extra in standalone
-environments; ROS2 installations should use their existing compatible NumPy/Pinocchio
-binaries and install the base package. Python 3.10+, NumPy 1.24+, SciPy 1.10+ are required.
+Replace `A7` with `A7lite` or `P7` for other models, and use `side="right"` for a right arm.
+Construction opens CAN, checks the motors and reads their initial state. The context manager closes the connection.
 
-The current wheel contains only `linkerbot_arm` and depends on `linkerbot-transport[can]>=1.0,<2.0`.
-CAN workers are delegated to the low-level dispatcher through an arm compatibility adapter;
-motor protocols and arm constructors remain unchanged. See the [phase-3 record](docs/PHASE3_TRANSPORT.md)
-for authenticated package installation and validation. The arm/hand/transport installation matrix is still pending. Detailed API pages
-also contain legacy imports awaiting updates; see the [migration TODO](docs/ARM_TRANSPORT_MIGRATION_TODO.md).
+## Documentation
 
-For development, install `.[kinetix,test,dev]` and run `python -m pytest` and `python -m build`.
-Hardware tests are excluded by default. See the [Chinese README](README.md),
-[migration guide](docs/MIGRATION.md), [ROS2 guide](docs/ROS2.md) and [architecture decisions](docs/SPLIT_PLAN.md).
+- [Installation](docs/INSTALLATION.md)
+- [A7 API](docs/zh/src/reference/a7/README.md)
+- [A7lite API](docs/zh/src/reference/a7lite/README.md)
+- [P7 API](docs/zh/src/reference/p7/README.md)
+- [CAN](docs/zh/src/reference/can.md)
+- [ROS2](docs/ROS2.md)
+- [Migration from the legacy SDK](docs/MIGRATION.md)
+- [Changelog](CHANGELOG.md)
+
+See [CONTRIBUTING](CONTRIBUTING.md) for development and testing. [中文](README.md)

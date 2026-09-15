@@ -9,3 +9,4 @@ dist/
 docs/zh/book/
 tests/reports/
 .coverage
+/.local-notes/
