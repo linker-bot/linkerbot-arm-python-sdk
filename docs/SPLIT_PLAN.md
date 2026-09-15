@@ -1,5 +1,7 @@
 # arm 独立仓库拆分计划与架构决策
 
+后续按可勾选的执行清单推进：[模块边界与 Transport 迁移 TODO](ARM_TRANSPORT_MIGRATION_TODO.md)。
+
 ## 基线与验收范围
 
 - SDK：`linkerbot-python-sdk` 0.5.4，commit `c6167ba`（完整哈希见接口基线 JSON）。
