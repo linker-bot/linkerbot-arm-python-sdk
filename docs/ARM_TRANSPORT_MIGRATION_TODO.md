@@ -27,17 +27,30 @@ arm 和 hand 的真实实现不再放在 `linkerbot` 包内。`linkerbot` 只负
 - 第二阶段才评估 `CANTransport` 高层生命周期；它不作为第一次拆分的前置条件。
 - 每个仓库遵循自己的 `AGENTS.md`。`linkerbot-transport` 的任何实现、测试、构建或文档改动，都必须先有 Issue。
 - 保留其他仓库现有未提交修改，不重置、不覆盖、不纳入本次提交。
-- 每个阶段单独提交，提交信息使用 Conventional Commits；未通过门禁不得创建下一阶段分支。
+- 每个阶段使用独立 PR 和 Conventional Commits 提交；阶段 N 完成验收并合并到 `master` 后，再从更新后的 `master` 开始阶段 N+1。
+- 完成项同时更新本 TODO，并记录实际验证结果；未验收项目保持未勾选。
 - 真机测试按“mock → vcan → 单关节低速 → 多关节低速 → 双臂/共享总线”顺序执行。
+
+## 分阶段合并顺序
+
+1. 阶段 1：`chore/phase-1-api-inventory` → `master`，同时带入阶段 0 的基线文档。
+2. 阶段 2：`refactor/phase-2-linkerbot-arm-namespace` 独立审查；阶段 1 合并后同步 `master`、将 PR 目标改为 `master`，通过本阶段验收再合并。
+3. 阶段 3：阶段 2 合并后，从最新 `master` 新建分支实现低层 dispatcher 替换，再单独提交 PR。
+
+现有阶段 2 分支是此前从阶段 1 派生的分支，为只审查增量可暂将其草稿 PR 目标设为阶段 1；
+这不是将阶段 2 合并进阶段 1。第一份 PR 合并后再改目标分支，不再用一个累计 PR 合并所有阶段。
+阶段 0 的历史分支保留作追踪，不需要重复合并。
 
 ## 阶段 0：建立协作与版本基线
 
-- [ ] 在 `linkerbot-arm` 创建总 Issue：arm 命名空间迁移和 transport 替换。
-- [ ] 在 `linkerbot-transport` 创建关联 Issue：确认 dispatcher 兼容面；如果不改 transport 源码，只记录为依赖审查 Issue。
-- [ ] 在 `linkerbot-hand` 创建关联 Issue：确认 arm、hand、transport 可共存安装。
-- [ ] 确认三个仓库的目标基线 commit、默认分支和发布源。
-- [ ] 固定版本目标：`linkerbot-transport 1.x`、`linkerbot-arm 0.6.x`、聚合包 `linkerbot 1.0.x`。
-- [ ] 保存当前 arm/hand/transport 的测试结果，作为迁移前基线。
+- [x] 在 `linkerbot-arm` 创建总 Issue：arm 命名空间迁移和 transport 替换。
+- [x] 在 `linkerbot-transport` 创建关联 Issue：确认 dispatcher 兼容面；如果不改 transport 源码，只记录为依赖审查 Issue。
+- [x] 在 `linkerbot-hand` 创建关联 Issue：确认 arm、hand、transport 可共存安装。
+- [x] 记录三个仓库的本地基线 commit 和分支，见 [阶段 0 记录](PHASE0_BASELINE.md)。
+- [ ] 补齐三个仓库默认分支和实际发布源的核验记录。
+- [x] 固定版本目标：`linkerbot-transport 1.x`、`linkerbot-arm 0.6.x`、聚合包 `linkerbot 1.0.x`。
+- [x] 保存迁移前 arm 与 ROS2 的验证记录。
+- [ ] 补齐 hand/transport 的有效测试基线；目前仅记录了环境和依赖错误。
 
 阶段门禁：Issue、分支、基线 commit 和测试结果都已记录；没有修改实现文件。
 
@@ -47,9 +60,10 @@ arm 和 hand 的真实实现不再放在 `linkerbot` 包内。`linkerbot` 只负
 
 目标是把“兼容所有 arm 接口”变成可自动验证的清单。
 
-- [ ] 扫描 `linkerbot-arm` 的公开导入、深层导入、类、函数、属性和异常。
-- [ ] 扫描 ROS2、标定工具、生命周期工具的实际导入和调用。
-- [ ] 固定以下调用路径：
+- [x] 扫描主要公开导入、深层导入、类、函数和异常，保存初步清单。
+- [ ] 补齐属性、枚举及全部导出的兼容覆盖。
+- [x] 扫描 ROS2、标定工具、生命周期工具的实际导入和调用。
+- [x] 固定以下现有调用路径；0.6.0 命名空间迁移后，旧路径将由聚合包兼容门面提供：
 
   ```python
   from linkerbot import A7, A7lite, P7
@@ -58,10 +72,12 @@ arm 和 hand 的真实实现不再放在 `linkerbot` 包内。`linkerbot` 只负
   from linkerbot.arm.p7.motor_v2 import MotorV2
   ```
 
-- [ ] 为 A7、A7lite、P7 保存构造函数和方法签名快照。
-- [ ] 为 `_set_angles`、`_motors`、`_can_dispatcher` 等现有集成使用的内部接口增加兼容测试。
-- [ ] 为异常类型、默认参数、返回模型和上下文管理器增加测试。
-- [ ] 记录当前构造生命周期：创建 arm 时打开 CAN、检查电机、读取初始状态、启动 polling。
+- [x] 为 A7、A7lite、P7 保存构造函数和方法签名快照。
+- [x] 使用 fake motor 验证 `_set_angles`、限位检查和 `_motors` 角度转发。
+- [ ] 补齐构造后 `_motors`、`_can_dispatcher` 与资源释放行为的兼容测试。
+- [x] 验证已有方法签名和默认参数、Pose 转换及 ValidationError 导出身份。
+- [ ] 补齐异常层级、全部返回模型和上下文管理器行为测试。
+- [ ] 按 A7、A7lite、P7 分别记录构造时打开 CAN、检查电机、读取初始状态及后台任务的实际顺序。
 
 阶段门禁：旧版本基线测试通过，兼容快照可在新旧实现上运行。
 
@@ -248,3 +264,13 @@ src/linkerbot_arm/
 - [ ] 低层 dispatcher 迁移不改变 arm 控制行为。
 - [ ] 高层 `CANTransport` 只有在独立门禁全部通过后才启用。
 - [ ] 真机验证结果与未验证范围均记录在发布文档中。
+
+## 阶段 1 独立 PR 复核
+
+- 分支：`chore/phase-1-api-inventory`，目标 `master`；包含阶段 0 的基线文档。
+- SDK 仍为 0.5.4，源码仍位于 `src/linkerbot`。
+- 同步了 Enum 快照测试修复、API 清单和验收状态更正；没有修改运行实现。
+- Python 3.10：355 passed，12 项运动学测试跳过，38 项硬件测试排除。
+- Python 3.13（含 Pinocchio）：367 passed，38 项硬件测试排除。
+- Ruff、`git diff --check` 通过；测试均显式使用本分支 `src`。
+- 本次是拆分 PR 的准备，阶段 0/1 未勾选项完成前保持草稿，不将测试通过等同于全部验收完成。
