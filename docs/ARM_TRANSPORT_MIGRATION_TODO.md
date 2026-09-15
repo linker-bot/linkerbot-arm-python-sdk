@@ -35,8 +35,8 @@ arm 和 hand 的真实实现不再放在 `linkerbot` 包内。`linkerbot` 只负
 ## 分阶段合并顺序
 
 1. 阶段 1：PR #2 已 squash 合并到 `master`，基线提交 `67d4757`，同时带入阶段 0 的基线文档。
-2. 阶段 2：`refactor/phase-2-linkerbot-arm-namespace` 已变基到 `origin/master` 的 `67d4757`，PR #3 目标为 `master`，通过本阶段验收再合并。
-3. 阶段 3：阶段 2 合并后，从最新 `master` 新建分支实现低层 dispatcher 替换，再单独提交 PR。
+2. 阶段 2：PR #3 已 squash 合并到 `master`，基线提交 `51c1ec2`。
+3. 阶段 3：`refactor/phase-3-transport-1` 从 `51c1ec2` 建立，实现低层 dispatcher 接入；单独提交 PR，合并后再开始阶段 4。
 
 阶段 2 的旧阶段 1 提交链和同步 merge 已从新历史中移除，PR #3 仅包含阶段 2 的增量。
 阶段 0 的历史分支保留作追踪，不需要重复合并。
@@ -50,7 +50,8 @@ arm 和 hand 的真实实现不再放在 `linkerbot` 包内。`linkerbot` 只负
 - [ ] 补齐三个仓库默认分支和实际发布源的核验记录。
 - [x] 固定版本目标：`linkerbot-transport 1.x`、`linkerbot-arm 0.6.x`、聚合包 `linkerbot 1.0.x`。
 - [x] 保存迁移前 arm 与 ROS2 的验证记录。
-- [ ] 补齐 hand/transport 的有效测试基线；目前仅记录了环境和依赖错误。
+- [x] 补齐 transport 有效测试基线：1.0.0 / `e8c8bf7`，360 passed（阶段 3）。
+- [ ] 补齐 hand 的有效测试基线；阶段 0 仅记录了环境和依赖错误。
 
 阶段门禁：Issue、分支、基线 commit 和测试结果都已记录；没有修改实现文件。
 
@@ -74,10 +75,11 @@ arm 和 hand 的真实实现不再放在 `linkerbot` 包内。`linkerbot` 只负
 
 - [x] 为 A7、A7lite、P7 保存构造函数和方法签名快照。
 - [x] 使用 fake motor 验证 `_set_angles`、限位检查和 `_motors` 角度转发。
-- [ ] 补齐构造后 `_motors`、`_can_dispatcher` 与资源释放行为的兼容测试。
+- [x] 补齐构造后 `_motors`、`_can_dispatcher` 与正常关闭资源释放测试（阶段 3，三型号/左右臂）。
 - [x] 验证已有方法签名和默认参数、Pose 转换及 ValidationError 导出身份。
-- [ ] 补齐异常层级、全部返回模型和上下文管理器行为测试。
-- [ ] 按 A7、A7lite、P7 分别记录构造时打开 CAN、检查电机、读取初始状态及后台任务的实际顺序。
+- [x] 补齐异常层级、位置参数、pickle 和三型号上下文管理器行为测试（阶段 3）。
+- [ ] 补齐全部返回模型的行为测试。
+- [x] 按 A7、A7lite、P7 分别记录构造时打开 CAN、检查电机、读取初始状态及后台任务的实际顺序，见 [阶段 3 记录](PHASE3_TRANSPORT.md)。
 
 阶段门禁：旧版本基线测试通过，兼容快照可在新旧实现上运行。
 
@@ -91,7 +93,7 @@ arm 和 hand 的真实实现不再放在 `linkerbot` 包内。`linkerbot` 只负
 src/linkerbot_arm/
 ├── __init__.py
 ├── arm/                 # 包含 common/、kinetix/ 及各型号
-├── comm/                # 阶段 4 删除重复通信实现
+├── comm/                # 保留 CAN 兼容入口；阶段 4 清理剩余重复后端
 ├── motion_timer.py
 ├── relay.py
 ├── queue/
@@ -111,7 +113,7 @@ src/linkerbot_arm/
 - [x] `from linkerbot_arm import A7, A7lite, P7` 成功。
 - [x] 在源码目录之外安装 wheel，加载六份 URDF 并验证 12 种 FK/IK 组合。
 - [x] API 快照通过。
-- [x] 运动学、fake motor、无硬件测试通过；构造与关闭生命周期测试仍待阶段 1 补齐。
+- [x] 运动学、fake motor、无硬件测试通过；构造与正常关闭生命周期测试在阶段 3 补齐。
 - [x] arm 源码和测试不再依赖旧 `linkerbot` 模块路径。
 
 回滚点：恢复命名空间迁移前的 arm commit；不涉及 transport 和 ROS2。
@@ -124,41 +126,45 @@ src/linkerbot_arm/
 
 | 旧位置 | 新位置 |
 | --- | --- |
-| `linkerbot.comm.can.CANMessageDispatcher` | `linkerbot_transport.can.CANMessageDispatcher` |
-| `linkerbot.comm.can.types.CanInterface` | `linkerbot_transport.can.CanInterface` |
-| `linkerbot.exceptions.ValidationError` | `linkerbot_transport.errors.ValidationError` |
-| `linkerbot.exceptions.TimeoutError` | `linkerbot_transport.errors.TimeoutError` |
+| `linkerbot.comm.can.CANMessageDispatcher` | `linkerbot_arm.comm.can.CANMessageDispatcher` 兼容层 → `linkerbot_transport.can.can.CANMessageDispatcher` |
+| `linkerbot.comm.can.types.CanInterface` | `linkerbot_arm.comm.can.CanInterface` 转出 `linkerbot_transport.can.CanInterface` |
+| `linkerbot.exceptions.ValidationError` | 保留 arm 同名异常并继承 `linkerbot_transport.errors.ValidationError` |
+| `linkerbot.exceptions.TimeoutError` | 保留 arm 同名异常并继承 `linkerbot_transport.errors.TimeoutError` |
 | `linkerbot.relay.DataRelay` | `linkerbot_arm.relay.DataRelay` |
 | `linkerbot.motion_timer.MotionTimer` | `linkerbot_arm.motion_timer.MotionTimer` |
 | `linkerbot.queue.IterableQueue` | `linkerbot_arm.queue.IterableQueue` |
 
-- [ ] A7、A7lite、P7 改为导入 `linkerbot_transport.can.CANMessageDispatcher`。
-- [ ] 验证 dispatcher 的 `subscribe()`、`unsubscribe()`、`send()`、`stop()`、`can_interface` 行为。
-- [ ] 忽略 `send()` 新增的 `SendReceipt` 返回值，保持现有 motor 调用时序。
-- [ ] 保留 arm 的 `StateError`，使其继承 transport 的 `DeviceStateError`。
-- [ ] 将 arm 内部通信异常统一到 transport 异常层级。
-- [ ] 不把 `DataRelay` 移入 transport；它是 arm 电机响应同步工具，不是物理传输工具。
-- [ ] 不在此阶段使用 `CANTransport`，不引入显式 `open()` 生命周期。
+- [x] A7、A7lite、P7 通过 arm 兼容层使用 transport 的低层 dispatcher；更正实际深层导入路径。
+- [x] 验证 dispatcher 的 `subscribe()`、`unsubscribe()`、`send()`、`stop()`、`can_interface` 行为。
+- [x] 忽略 `send()` 新增的 `SendReceipt` 返回值，保持现有 motor 调用时序。
+- [x] 保留 arm 的 `StateError`，使其继承 transport 的 `DeviceStateError`。
+- [x] 将 arm 异常接入 transport 层级，同时保留旧类身份、位置参数、`queue.Full` 与 `CANError` 捕获。
+- [x] 不把 `DataRelay` 移入 transport；它是 arm 电机响应同步工具，不是物理传输工具。
+- [x] 不在此阶段使用 `CANTransport`，不引入显式 `open()` 生命周期。
+
+实现调整：transport 直接导入不能保持原 `send()` 返回值和异常，因此采用薄兼容层；
+CAN I/O、队列和线程仍全部委托 transport。具体差异、依赖来源和保留问题见 [阶段 3 记录](PHASE3_TRANSPORT.md)。
 
 ### 测试
 
-- [ ] fake dispatcher 测试三款 arm 的发送和接收。
-- [ ] 测试总线错误回调仍能令 arm 进入关闭/故障状态。
-- [ ] 测试 polling 停止顺序和 `close()` 幂等性。
-- [ ] 运行 transport 自身完整测试，不修改既有 transport 行为。
-- [ ] 运行 arm 无硬件测试和 ROS2 adapter 测试。
-- [ ] 使用 vcan 做至少一次真实 dispatcher 收发验证。
+- [x] fake dispatcher 与真实 virtual dispatcher 测试三种 motor 的协议帧和反馈；覆盖 P7 混合 motor 构造。
+- [x] 测试真实 backend 错误回调仍能令三款 arm 进入关闭/故障状态，且仅回调一次。
+- [x] 测试 polling 停止顺序、`close()` 幂等性和上下文管理器。
+- [x] 运行 transport 自身完整测试：360 passed；未修改 transport 实现。
+- [x] 运行 arm 无硬件测试和实际 ROS2 adapter 测试；后者采用测试进程别名，正式 loader 仍待阶段 5。
+- [x] 使用隔离网络命名空间内的 vcan 做真实 SocketCAN 收发验证：13 passed。
 
-阶段门禁：arm 行为测试与迁移前结果一致；没有因 transport 替换改变控制周期、协议帧和生命周期语义。
+阶段门禁：原始 API 与新增 arm 行为测试通过，控制周期、协议帧和 arm 初始化/关闭顺序保持原实现。
+transport 自带的并发关闭修复及尚未完成的真机验收范围已记录，不以此宣称所有故障生命周期问题已解决。
 
 回滚点：将 arm dispatcher 导入切回迁移前实现；保留 namespace 阶段成果。
 
 ## 阶段 4：删除 arm 内重复通信实现
 
-- [ ] 删除 `linkerbot-arm/src/linkerbot/comm` 或迁移残留目录。
+- [ ] 清理 `linkerbot_arm/comm` 剩余重复后端；保留阶段 3 的 CAN 薄兼容入口，不能直接删除整个目录。
 - [ ] 删除 arm 仓库中重复的 CAN/CAN FD 测试。
 - [ ] 将 CAN/CAN FD 测试责任归还 `linkerbot-transport`。
-- [ ] 确认 arm 依赖声明为 `linkerbot-transport[can]>=1.0,<2.0`。
+- [x] 确认 arm 依赖声明为 `linkerbot-transport[can]>=1.0,<2.0`（阶段 3 提前完成，已检查 wheel 元数据）。
 - [ ] 确认 arm wheel 不包含 `linkerbot.comm`、CAN FD 后端和 hand 模块。
 - [ ] 保留 `linkerbot_arm.relay`、`linkerbot_arm.motion_timer` 和 `linkerbot_arm.queue`。
 
@@ -266,12 +272,11 @@ src/linkerbot_arm/
 
 ## 当前交付与验收记录
 
-- 分支：`refactor/phase-2-linkerbot-arm-namespace`
-- 提交：`62705e3`（命名空间迁移，原提交 `2ad6b92` 已变基）
-- 命名空间实现和打包已完成；阶段 0/1 尚有上述未勾选项，不能据此宣称阶段 0～2 全部门禁通过。
-- 验证结果与执行环境见 [验证记录](VALIDATION.md) 的 PR 复核部分。
-- 阶段 1 已合并到 `master`；本分支已变基到其 squash 提交，PR #3 仅包含阶段 2 增量。
-- 下一步：补齐前序门禁和命名空间相关使用文档，再进入阶段 3；ROS2 接入和旧导入门面分别在阶段 5、6 完成。
+- 分支：`refactor/phase-3-transport-1`，基于阶段 2 squash 合并提交 `51c1ec2`。
+- 阶段 3 实现、兼容测试、vcan 和独立 wheel 验证已完成，待本阶段 PR 审核合并。
+- 阶段 0/1 尚有上述未勾选项，不据此宣称完整迁移、所有返回模型或真机验收完成。
+- 验证结果与执行环境见 [验证记录](VALIDATION.md) 的阶段 3 部分。
+- 下一步：阶段 3 合并后从更新的 `master` 开始阶段 4；ROS2 正式接入和旧导入门面分别在阶段 5、6 完成。
 
 ## 阶段 1 独立 PR 复核
 

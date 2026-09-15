@@ -1,9 +1,5 @@
-from dataclasses import dataclass
+"""Keep the arm import path for the shared CAN interface value type."""
 
+from linkerbot_transport.can.types import CanInterface
 
-@dataclass(frozen=True, slots=True)
-class CanInterface:
-    """Identifies the CAN bus a device is talking on."""
-
-    interface_name: str
-    interface_type: str
+__all__ = ["CanInterface"]

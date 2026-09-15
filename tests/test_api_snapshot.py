@@ -55,7 +55,11 @@ _CLASSES = {
 def test_pre_migration_api_snapshot_is_current() -> None:
     for path, cls in _CLASSES.items():
         expected = SNAPSHOT["classes"][path]
-        assert cls.__module__ == expected["module"]
+        module = expected["module"]
+        if cls is CanInterface:
+            # The frozen dataclass is now re-exported from transport.
+            module = "linkerbot_transport.can.types"
+        assert cls.__module__ == module
         assert cls.__qualname__ == expected["qualname"]
         if issubclass(cls, Enum):
             # Enum's generated constructor differs between Python versions.
@@ -65,7 +69,19 @@ def test_pre_migration_api_snapshot_is_current() -> None:
             # Generated Enum internals vary too; source-defined methods are
             # covered by tests/compat/test_api.py against the upstream snapshot.
             continue
+        if issubclass(cls, LinkerbotError):
+            # Exception's C constructor had no inspectable signature. The
+            # compatibility constructor explicitly retains arbitrary *args;
+            # argument, catch and pickle behavior is checked separately.
+            assert expected["signature"] is None
+            assert expected["methods"] == {}
+            assert _signature(cls) == "(*args) -> None"
+            continue
         assert _signature(cls) == expected["signature"]
+        if cls is CANMessageDispatcher:
+            for name, signature in expected["methods"].items():
+                assert _signature(getattr(cls, name)) == signature, name
+            continue
         methods = {
             name: _signature(obj)
             for name, obj in cls.__dict__.items()

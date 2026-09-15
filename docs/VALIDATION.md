@@ -67,3 +67,44 @@ wheel 环境：NumPy 2.5.3、SciPy 1.18.1、Pinocchio 4.1.0、Pydantic 2.13.5、
 
 阶段 0/1 的剩余兼容门禁、transport 替换、详细文档迁移、ROS2 新导入适配和聚合包旧导入门面
 尚未完成，实际完成情况见主 TODO。本分支的版本字段为 0.6.0，但尚未发布该版本。
+
+## 阶段 3 低层 transport 验证（2026-09-15）
+
+阶段 2 已经通过 PR #3 squash 合并为 `51c1ec2`；本阶段分支
+`refactor/phase-3-transport-1` 从该提交建立，没有引入 merge commit。
+实现说明、初始化顺序和回滚见 [阶段 3 记录](PHASE3_TRANSPORT.md)。
+
+| 检查 | 本阶段实际结果 |
+| --- | --- |
+| 原始兼容基线 | 两个 JSON 未重写；396 个源码函数/方法签名及运行时基线检查通过，委托方法仍逐项核对 |
+| Python 3.13.14 / 完整依赖 | 413 passed，38 项硬件用例排除 |
+| Python 3.10.20 / 最低依赖 | 401 passed，12 项运动学因没有 Pinocchio 跳过，38 项硬件用例排除 |
+| transport 1.0.0 自身测试 | 360 passed，使用 `e8c8bf7` checkout，运行源码/原测试与远端 `6c0724d` 相同 |
+| 实际 ROS2 adapter | 49 passed；实际三型号类 autospec，15 个协议操作、默认参数、返回值、异常传递 |
+| Linux vcan / SocketCAN | 13 passed；独立 user/network namespace，三 motor 实际帧收发与寄存器超时 |
+| wheel / sdist | 构建成功，各含六份 URDF；无旧 `linkerbot/` 与 hand；依赖元数据包含 transport `[can]>=1.0,<2.0` |
+| 源码目录外的干净 wheel 环境 | 413 passed / 38 deselected，含六模型、12 种 FK/IK；`uv pip check` 通过 |
+| 静态检查 | Ruff、`git diff --check` 通过；arm/motor、运动学、URDF、本地 relay/timer/queue 源码相对阶段 2 无差异 |
+
+新增 46 项回归覆盖三款 arm 左右臂构造和正常关闭、上下文异常传播、总线故障标记、
+三种 motor 的标准/扩展 CAN 帧与反馈、异常层级与 pickle、冻结 CanInterface、
+SendReceipt 忽略、旧发送异常、并发失败关闭，以及回调内关闭后的线程回收。
+原通信测试保留到阶段 4，底层 monkeypatch 定位改为 transport 的实际实现模块。
+
+完整 wheel 环境：transport 1.0.0、NumPy 2.5.3、SciPy 1.18.1、Pinocchio 4.1.0、
+Pydantic 2.13.5、python-can 4.6.1、pytest 8.4.2。
+最低依赖：NumPy 1.24.0、SciPy 1.10.0、Pydantic 2.0、python-can 4.6.1。
+测试清除继承的 ROS2 `PYTHONPATH` 或显式设置为本分支 `src`，关闭 pytest 自动加载插件；
+完整测试显式加载 `pytest_timeout`。源码外测试确认 arm/transport 均来自独立环境的 `site-packages`。
+
+产物：`/tmp/linkerbot-arm-phase3-dist`；干净环境：`/tmp/linkerbot-arm-phase3-wheel-venv`。
+transport 从认证 Gitea API 下载固定 commit 归档后安装，未冒充已发布 wheel 验证。
+归档 SHA256：`5c4bf0dc08538804981c3980358e417484e4dfe7305407b03f019f8b09d3ba0e`。
+
+ROS2 对照对象为现有工作区 `985b57e` 加已有修改，测试没有更改该仓库。
+`tools/check_ros2_adapter.py` 在测试进程内提供旧名到 canonical 类的别名，并验证 `_ARM_CLASSES` 身份。
+没有将这一结果当作正式 loader、rclpy 节点或 launch 的阶段 5 验收。
+现有物理 CAN、完整 SDK、hand 与 transport 工作区均未修改；未进行使能、标定或真机运动。
+
+阶段 3 保留的故障清理问题、即时反馈竞争及 transport 底层并发差异见实现记录。
+阶段 4 清理、三包共存、聚合包兼容、正式 ROS2 接入和最终真机验收继续按 TODO 执行。

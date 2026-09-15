@@ -9,6 +9,7 @@
 - 共享通信代码与完整 SDK 的修复通过独立 commit 审阅、回归和按需移植，不自动复制覆盖。
 
 ```bash
+# 先安装 transport 1.x；固定版本与包源认证方式见 docs/PHASE3_TRANSPORT.md。
 python -m pip install -e '.[kinetix,test,dev]'
 python -m pytest
 python -m build
@@ -22,4 +23,6 @@ CAN_INTERFACE=can0 ARM_SIDE=left python -m pytest tests/arm/a7 -m 'hardware and 
 
 修改打包或 URDF 后，必须在源码目录之外安装 wheel 验证导入和六个模型的加载。
 修改 ROS2 接入后，在安装新 SDK 的环境运行 ROS2 仓库 `tests/`；带 rclpy 的环境会额外运行真实节点测试。
+当前阶段可运行 `python tools/check_ros2_adapter.py ../linker_arm_ros2` 检查真实 adapter；
+该工具的临时导入映射不代表正式 loader 已完成迁移。
 发布前记录 Python、NumPy、SciPy、Pinocchio 版本以及真机验收结果，并更新 CHANGELOG。

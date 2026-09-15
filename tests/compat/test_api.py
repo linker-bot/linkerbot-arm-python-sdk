@@ -2,9 +2,11 @@
 
 import ast
 import importlib
+import inspect
 import json
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -37,6 +39,18 @@ def test_all_original_signatures(relative, record):
 
     collect(tree.body)
     for name, signature in record["signatures"].items():
+        if relative == "linkerbot/comm/can/can.py" and name not in signatures:
+            # Delegated methods still have to match the frozen source contract.
+            # Resolve the actual inherited implementation, including properties;
+            # do not regenerate the baseline or exempt the dispatcher from it.
+            obj = importlib.import_module("linkerbot_arm.comm.can.can")
+            for part in name.split("."):
+                obj = inspect.getattr_static(obj, part)
+            if isinstance(obj, property):
+                obj = obj.fget
+            delegated = ast.parse(textwrap.dedent(inspect.getsource(obj)))
+            prefix = name.rsplit(".", 1)[0] + "." if "." in name else ""
+            collect(delegated.body, prefix)
         assert signatures.get(name) == signature, f"{relative}:{name}"
 
 

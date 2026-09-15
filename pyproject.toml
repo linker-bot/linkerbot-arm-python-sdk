@@ -12,6 +12,7 @@ dependencies = [
   "scipy>=1.10",
   "pydantic>=2.0,<3",
   "python-can>=4.6.1,<5",
+  "linkerbot-transport[can]>=1.0,<2.0",
 ]
 
 [project.optional-dependencies]

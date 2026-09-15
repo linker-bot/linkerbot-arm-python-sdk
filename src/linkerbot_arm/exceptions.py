@@ -1,57 +1,41 @@
-"""Custom exceptions for the Linkerbot SDK.
+"""Arm exception names with transport categories and legacy constructors.
 
-This module defines the exception hierarchy used throughout the SDK for
-consistent error handling and reporting.
+The arm classes remain distinct so existing imports, catches and pickling keep
+working. Multiple positional exception arguments remain supported, unlike the
+transport's message/cause constructor. The dispatcher adapts transport errors
+at the arm boundary instead of requiring users to catch a new exception type.
 """
 
 import builtins
 
-
-class LinkerbotError(Exception):
-    """Base exception for all Linkerbot SDK errors.
-
-    All custom exceptions in the SDK inherit from this base class,
-    making it easy to catch all SDK-related errors.
-    """
-
-    pass
+from linkerbot_transport import errors as _errors
 
 
-class TimeoutError(LinkerbotError, builtins.TimeoutError):
-    """Raised when an operation times out.
+class LinkerbotError(_errors.LinkerbotError):
+    """Base exception for arm errors; accepts the original Exception arguments."""
 
-    This exception is raised when a blocking operation (such as waiting for
-    sensor data) does not complete within the specified timeout period.
-    """
-
-    pass
+    def __init__(self, *args) -> None:
+        Exception.__init__(self, *args)
+        self.cause = None
 
 
-class CANError(LinkerbotError):
-    """Raised when a CAN communication error occurs.
+class TimeoutError(LinkerbotError, _errors.TimeoutError):
+    """Raised when an arm response does not arrive within the timeout."""
 
-    This exception is raised for errors related to CAN bus communication,
-    such as failed message sends or bus errors.
-    """
-
-    pass
-
-
-class ValidationError(LinkerbotError):
-    """Raised when input validation fails.
-
-    This exception is raised when provided data does not meet the required
-    format, range, or type constraints.
-    """
-
-    pass
+    def __init__(self, *args) -> None:
+        # The original arm TimeoutError already inherited builtins.TimeoutError.
+        # Preserve its errno/strerror/filename handling for positional calls.
+        builtins.TimeoutError.__init__(self, *args)
+        self.cause = None
 
 
-class StateError(LinkerbotError):
-    """Raised when an operation is attempted in an invalid state.
+class CANError(LinkerbotError, _errors.TransportError):
+    """Raised for CAN communication errors at the arm boundary."""
 
-    This exception is raised when attempting operations that are not valid
-    in the current state (e.g., starting streaming when already streaming).
-    """
 
-    pass
+class ValidationError(LinkerbotError, _errors.ValidationError):
+    """Raised when arm input validation fails."""
+
+
+class StateError(LinkerbotError, _errors.DeviceStateError):
+    """Raised when the arm is not in a state allowing the operation."""
