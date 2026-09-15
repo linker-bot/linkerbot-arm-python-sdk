@@ -1,5 +1,10 @@
 # 从完整 SDK 迁移
 
+本文下方保留的是 `arm-sdk-split-0.5.4` 的迁移说明。当前 0.6.0 开发分支已经使用
+`linkerbot_arm`，不再提供 `linkerbot.*`；ROS2 loader 与聚合包兼容门面尚待完成。
+当前导入示例见 [README](../README.md)，完整迁移状态见 [TODO](ARM_TRANSPORT_MIGRATION_TODO.md)。
+不要将下方 0.5.4 的“无需修改导入”和 ROS2 源码发现方式用于当前开发分支。
+
 ## 原有代码
 
 以下调用路径保持原样：

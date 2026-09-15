@@ -11,7 +11,7 @@ from scipy.optimize import least_squares, minimize
 from scipy.spatial.transform import Rotation as R
 from scipy.spatial.transform import Slerp
 
-from linkerbot.arm.common import Pose, WayPoint
+from linkerbot_arm.arm.common import Pose, WayPoint
 
 
 class IKResult(BaseModel):
@@ -125,7 +125,7 @@ class ArmKinetix:
         """Construct an ArmKinetix from a URDF bundled with this package.
 
         Convenience factory for arms whose URDFs ship inside
-        ``linkerbot.arm.kinetix.urdf``.  For arbitrary URDFs, use the
+        ``linkerbot_arm.arm.kinetix.urdf``.  For arbitrary URDFs, use the
         regular constructor with a file path instead.
 
         Args:
@@ -137,7 +137,7 @@ class ArmKinetix:
         """
         from importlib.resources import files
 
-        path = files("linkerbot.arm.kinetix.urdf") / f"{arm_type}__{side}.urdf"
+        path = files("linkerbot_arm.arm.kinetix.urdf") / f"{arm_type}__{side}.urdf"
         return cls(
             urdf_path=str(path),
             tcp_offset=tcp_offset,

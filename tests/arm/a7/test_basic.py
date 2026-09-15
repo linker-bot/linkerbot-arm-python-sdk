@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from linkerbot.arm import A7
+from linkerbot_arm.arm import A7
 
 pytestmark = [pytest.mark.hardware, pytest.mark.a7, pytest.mark.basic]
 

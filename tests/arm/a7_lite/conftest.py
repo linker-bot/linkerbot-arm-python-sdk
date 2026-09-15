@@ -6,7 +6,7 @@ from typing import Literal, cast
 
 import pytest
 
-from linkerbot.arm import A7lite
+from linkerbot_arm.arm import A7lite
 
 NUM_JOINTS = 7
 

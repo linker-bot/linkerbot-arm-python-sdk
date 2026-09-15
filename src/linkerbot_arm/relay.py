@@ -5,7 +5,7 @@ import threading
 from collections.abc import Callable
 from typing import Generic, TypeVar, cast
 
-from linkerbot.exceptions import TimeoutError, ValidationError
+from linkerbot_arm.exceptions import TimeoutError, ValidationError
 
 T = TypeVar("T")
 

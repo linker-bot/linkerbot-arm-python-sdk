@@ -19,9 +19,9 @@ import time
 
 import pytest
 
-from linkerbot.comm.canfd import CANFDMessage
-from linkerbot.comm.canfd import ctypes_backend as backend
-from linkerbot.exceptions import CANError
+from linkerbot_arm.comm.canfd import CANFDMessage
+from linkerbot_arm.comm.canfd import ctypes_backend as backend
+from linkerbot_arm.exceptions import CANError
 
 
 class _FakeFn:

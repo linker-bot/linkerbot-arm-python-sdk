@@ -7,8 +7,8 @@ from typing import Literal
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-from linkerbot.arm.a7.motor import A7Motor, SensorType
-from linkerbot.arm.p7.consts import (
+from linkerbot_arm.arm.a7.motor import A7Motor, SensorType
+from linkerbot_arm.arm.p7.consts import (
     DEFAULT_POLL_INTERVALS,
     MAX_ACCELERATION,
     MAX_VELOCITY,
@@ -24,11 +24,11 @@ from linkerbot.arm.p7.consts import (
     MOVE_L_MAX_MAX_VELOCITY,
     NUM_JOINTS,
 )
-from linkerbot.arm.p7.motor_v2 import MotorV2
-from linkerbot.arm.common import ControlMode, Pose, State
-from linkerbot.comm import CanInterface, CANMessageDispatcher
-from linkerbot.exceptions import StateError, ValidationError
-from linkerbot.motion_timer import MotionTimer
+from linkerbot_arm.arm.p7.motor_v2 import MotorV2
+from linkerbot_arm.arm.common import ControlMode, Pose, State
+from linkerbot_arm.comm import CanInterface, CANMessageDispatcher
+from linkerbot_arm.exceptions import StateError, ValidationError
+from linkerbot_arm.motion_timer import MotionTimer
 
 # Joint-space waypoint streaming interval (matches A7's move_l interval).
 # 10 ms = 100 Hz; chosen to fit within current CAN dispatcher send-interval
@@ -51,10 +51,10 @@ def _guard_not_moving(method):
 class P7:
     """7-DoF arm with two motor variants on a single CAN bus.
 
-    Joints 0-4 reuse :class:`linkerbot.arm.a7.motor.A7Motor` (CMD-byte
+    Joints 0-4 reuse :class:`linkerbot_arm.arm.a7.motor.A7Motor` (CMD-byte
     protocol, drive-side trapezoidal trajectory generation).
 
-    Joints 5-6 use :class:`linkerbot.arm.p7.motor_v2.MotorV2`
+    Joints 5-6 use :class:`linkerbot_arm.arm.p7.motor_v2.MotorV2`
     (packed-frame protocol, Servo control mode with drive-side PD only —
     no internal trajectory generator).
 
@@ -91,7 +91,7 @@ class P7:
             *(A7Motor(mid, self._can_dispatcher) for mid in motor_ids[:5]),
             *(MotorV2(mid, self._can_dispatcher) for mid in motor_ids[5:]),
         ]
-        from linkerbot.arm.kinetix import ArmKinetix
+        from linkerbot_arm.arm.kinetix import ArmKinetix
 
         self._kx: ArmKinetix = ArmKinetix.from_builtin(
             "p7", side, tcp_offset=tcp_offset, world_frame=world_frame

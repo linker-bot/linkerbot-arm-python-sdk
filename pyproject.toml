@@ -1,6 +1,6 @@
 [project]
 name = "linkerbot-arm"
-version = "0.5.4"
+version = "0.6.0"
 description = "LinkerBot A7, A7lite and P7 robotic arm Python SDK"
 readme = "README.md"
 authors = [{ name = "LinkerBot" }, { name = "Jason Yip", email = "yezi.2022@outlook.com" }]
@@ -26,11 +26,11 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["linkerbot*"]
+include = ["linkerbot_arm*"]
 
 [tool.setuptools.package-data]
-linkerbot = ["py.typed"]
-"linkerbot.arm.kinetix.urdf" = ["*.urdf"]
+linkerbot_arm = ["py.typed"]
+"linkerbot_arm.arm.kinetix.urdf" = ["*.urdf"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

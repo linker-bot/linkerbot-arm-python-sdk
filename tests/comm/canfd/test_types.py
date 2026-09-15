@@ -2,13 +2,13 @@ from collections.abc import Callable
 
 import pytest
 
-from linkerbot.comm.canfd import (
+from linkerbot_arm.comm.canfd import (
     CANFDConfigOptions,
     CANFDMessage,
     dlc_to_length,
     length_to_dlc,
 )
-from linkerbot.exceptions import ValidationError
+from linkerbot_arm.exceptions import ValidationError
 
 
 def test_message_auto_selects_dlc() -> None:

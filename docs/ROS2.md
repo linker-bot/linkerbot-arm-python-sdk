@@ -1,5 +1,9 @@
 # ROS2 接入
 
+本文现有安装与 loader 说明针对 `arm-sdk-split-0.5.4`。
+当前 0.6.0 开发分支使用 `linkerbot_arm`，现有 ROS2 loader 仍查找 `linkerbot.arm`，接入迁移尚未完成。
+新命名空间下的 ROS2 验证将按 [TODO 阶段 5](ARM_TRANSPORT_MIGRATION_TODO.md) 执行。
+
 `linker_arm_ros2` 通过 `ArmProtocol → LinkerBotSDKAdapter` 调用 SDK。
 实际支持 A7、A7lite、P7；流式控制继续使用 `_set_angles`。
 

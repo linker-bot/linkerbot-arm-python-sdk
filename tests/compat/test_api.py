@@ -9,15 +9,15 @@ from pathlib import Path
 
 import pytest
 
-import linkerbot
+import linkerbot_arm
 
 BASELINE = json.loads(Path(__file__).with_name("upstream_api.json").read_text())
-PACKAGE = Path(linkerbot.__file__).parent
+PACKAGE = Path(linkerbot_arm.__file__).parent
 
 
 @pytest.mark.parametrize("relative,record", BASELINE["files"].items())
 def test_all_original_signatures(relative, record):
-    path = PACKAGE.parent / relative
+    path = PACKAGE.parent / relative.replace("linkerbot", "linkerbot_arm", 1)
     assert path.is_file(), relative
     if path.suffix != ".py":
         return
@@ -45,9 +45,9 @@ def test_all_original_signatures(relative, record):
     [("A7", "a7.a7"), ("A7lite", "a7_lite.a7_lite"), ("P7", "p7.p7")],
 )
 def test_original_imports_preserve_class_identity(name, module):
-    cls = getattr(linkerbot, name)
-    assert cls is getattr(importlib.import_module("linkerbot.arm"), name)
-    assert cls is getattr(importlib.import_module(f"linkerbot.arm.{module}"), name)
+    cls = getattr(linkerbot_arm, name)
+    assert cls is getattr(importlib.import_module("linkerbot_arm.arm"), name)
+    assert cls is getattr(importlib.import_module(f"linkerbot_arm.arm.{module}"), name)
 
 
 def test_lazy_import_and_no_hand_dependency():
@@ -57,13 +57,13 @@ def test_lazy_import_and_no_hand_dependency():
             "-c",
             """
 import sys
-import linkerbot
-assert 'linkerbot.arm' not in sys.modules
-from linkerbot import A7, A7lite, P7
+import linkerbot_arm
+assert 'linkerbot_arm.arm' not in sys.modules
+from linkerbot_arm import A7, A7lite, P7
 assert 'pinocchio' not in sys.modules
-assert not any(n.startswith('linkerbot.hand') for n in sys.modules)
+assert not any(n.startswith('linkerbot_arm.hand') for n in sys.modules)
 assert 'tomli_w' not in sys.modules
-assert not any(n in linkerbot.__all__ for n in ('L6', 'L30', 'O6'))
+assert not any(n in linkerbot_arm.__all__ for n in ('L6', 'L30', 'O6'))
 """,
         ],
         check=True,
@@ -71,10 +71,10 @@ assert not any(n in linkerbot.__all__ for n in ('L6', 'L30', 'O6'))
 
 
 def test_pose_and_exception_identity():
-    from linkerbot.arm.common import Pose
-    from linkerbot.exceptions import ValidationError
+    from linkerbot_arm.arm.common import Pose
+    from linkerbot_arm.exceptions import ValidationError
 
     values = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
-    assert linkerbot.Pose is Pose
+    assert linkerbot_arm.Pose is Pose
     assert Pose.from_list(values).to_list() == values
-    assert linkerbot.ValidationError is ValidationError
+    assert linkerbot_arm.ValidationError is ValidationError

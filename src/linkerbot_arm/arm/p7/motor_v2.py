@@ -2,7 +2,7 @@
 
 P7 mixes two motor variants on a single CAN bus:
 
-* Joints 0-4 reuse :class:`linkerbot.arm.a7.motor.A7Motor` (CMD-byte protocol,
+* Joints 0-4 reuse :class:`linkerbot_arm.arm.a7.motor.A7Motor` (CMD-byte protocol,
   PROFILE_POSITION mode, host-side polling for sensor data).
 * Joints 5-6 use :class:`MotorV2` defined here. It speaks a packed-frame
   protocol with quantised parameters, runs in a Servo control mode (drive-side
@@ -11,7 +11,7 @@ P7 mixes two motor variants on a single CAN bus:
   heartbeat is required to keep the drive out of fault-on-timeout).
 
 :class:`MotorV2` mirrors :class:`A7Motor`'s public surface so that
-:class:`linkerbot.arm.p7.P7` can iterate over the mixed motor list
+:class:`linkerbot_arm.arm.p7.P7` can iterate over the mixed motor list
 without ``isinstance`` branches.
 """
 
@@ -21,18 +21,18 @@ import time
 
 import can
 
-from linkerbot.arm.a7.motor import SensorType  # re-exported for parity with A7Motor
-from linkerbot.arm.common import ControlMode
-from linkerbot.arm.common.model import (
+from linkerbot_arm.arm.a7.motor import SensorType  # re-exported for parity with A7Motor
+from linkerbot_arm.arm.common import ControlMode
+from linkerbot_arm.arm.common.model import (
     AccelerationState,
     AngleState,
     TemperatureState,
     TorqueState,
     VelocityState,
 )
-from linkerbot.comm import CANMessageDispatcher
-from linkerbot.exceptions import TimeoutError
-from linkerbot.relay import DataRelay
+from linkerbot_arm.comm import CANMessageDispatcher
+from linkerbot_arm.exceptions import TimeoutError
+from linkerbot_arm.relay import DataRelay
 
 logger = logging.getLogger(__name__)
 
@@ -103,8 +103,8 @@ class MotorV2:
     """Driver for the V2 motor variant in its Servo control mode.
 
     Designed to be ducktype-compatible with
-    :class:`linkerbot.arm.a7.motor.A7Motor`: same method names, same property
-    surface, same lifecycle. :class:`linkerbot.arm.p7.P7` mixes five
+    :class:`linkerbot_arm.arm.a7.motor.A7Motor`: same method names, same property
+    surface, same lifecycle. :class:`linkerbot_arm.arm.p7.P7` mixes five
     :class:`A7Motor` (joints 0-4) and two :class:`MotorV2` (joints 5-6) into
     a single ``_motors`` list and treats them uniformly.
 

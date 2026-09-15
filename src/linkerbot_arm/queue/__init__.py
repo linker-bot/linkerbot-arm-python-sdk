@@ -3,6 +3,6 @@
 This module provides queue implementations with enhanced iteration capabilities.
 """
 
-from linkerbot.queue.iterable_queue import IterableQueue
+from linkerbot_arm.queue.iterable_queue import IterableQueue
 
 __all__ = ["IterableQueue"]

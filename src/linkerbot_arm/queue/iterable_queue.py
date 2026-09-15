@@ -13,7 +13,7 @@ from collections import deque
 from collections.abc import Iterator
 from typing import Generic, TypeVar
 
-from linkerbot.exceptions import StateError
+from linkerbot_arm.exceptions import StateError
 
 T = TypeVar("T")
 

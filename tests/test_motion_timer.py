@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from linkerbot.motion_timer import MotionTimer
+from linkerbot_arm.motion_timer import MotionTimer
 
 
 class TestMotionTimer:

@@ -13,7 +13,7 @@ from typing import Literal, cast
 
 import pytest
 
-from linkerbot.arm import A7lite, Pose
+from linkerbot_arm.arm import A7lite, Pose
 from tests.conftest import InteractiveSession
 
 pytestmark = [pytest.mark.hardware, pytest.mark.a7_lite, pytest.mark.interactive, pytest.mark.motion]

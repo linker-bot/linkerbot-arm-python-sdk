@@ -5,9 +5,9 @@ from collections.abc import Callable
 
 import pytest
 
-from linkerbot.comm.canfd import CANFDMessage, CANFDMessageDispatcher
-from linkerbot.comm.canfd import dispatcher as dispatcher_module
-from linkerbot.exceptions import CANError, StateError, ValidationError
+from linkerbot_arm.comm.canfd import CANFDMessage, CANFDMessageDispatcher
+from linkerbot_arm.comm.canfd import dispatcher as dispatcher_module
+from linkerbot_arm.exceptions import CANError, StateError, ValidationError
 
 
 class FakeInterface:

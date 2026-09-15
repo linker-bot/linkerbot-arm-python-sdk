@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from linkerbot import A7, P7, A7lite, ValidationError
+from linkerbot_arm import A7, P7, A7lite, ValidationError
 
 
 @pytest.fixture(params=[A7, A7lite, P7])

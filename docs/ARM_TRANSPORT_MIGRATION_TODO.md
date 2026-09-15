@@ -28,17 +28,17 @@ arm 和 hand 的真实实现不再放在 `linkerbot` 包内。`linkerbot` 只负
 - 每个仓库遵循自己的 `AGENTS.md`。`linkerbot-transport` 的任何实现、测试、构建或文档改动，都必须先有 Issue。
 - 保留其他仓库现有未提交修改，不重置、不覆盖、不纳入本次提交。
 - 每个阶段使用独立 PR 和 Conventional Commits 提交；阶段 N 完成验收并合并到 `master` 后，再从更新后的 `master` 开始阶段 N+1。
+- 保持线性历史，同步最新 `origin/master` 使用 rebase；PR 使用 squash、rebase 或 fast-forward 合并，不引入 merge commit。
 - 完成项同时更新本 TODO，并记录实际验证结果；未验收项目保持未勾选。
 - 真机测试按“mock → vcan → 单关节低速 → 多关节低速 → 双臂/共享总线”顺序执行。
 
 ## 分阶段合并顺序
 
-1. 阶段 1：`chore/phase-1-api-inventory` → `master`，同时带入阶段 0 的基线文档。
-2. 阶段 2：`refactor/phase-2-linkerbot-arm-namespace` 独立审查；阶段 1 合并后同步 `master`、将 PR 目标改为 `master`，通过本阶段验收再合并。
+1. 阶段 1：PR #2 已 squash 合并到 `master`，基线提交 `67d4757`，同时带入阶段 0 的基线文档。
+2. 阶段 2：`refactor/phase-2-linkerbot-arm-namespace` 已变基到 `origin/master` 的 `67d4757`，PR #3 目标为 `master`，通过本阶段验收再合并。
 3. 阶段 3：阶段 2 合并后，从最新 `master` 新建分支实现低层 dispatcher 替换，再单独提交 PR。
 
-现有阶段 2 分支是此前从阶段 1 派生的分支，为只审查增量可暂将其草稿 PR 目标设为阶段 1；
-这不是将阶段 2 合并进阶段 1。第一份 PR 合并后再改目标分支，不再用一个累计 PR 合并所有阶段。
+阶段 2 的旧阶段 1 提交链和同步 merge 已从新历史中移除，PR #3 仅包含阶段 2 的增量。
 阶段 0 的历史分支保留作追踪，不需要重复合并。
 
 ## 阶段 0：建立协作与版本基线
@@ -90,30 +90,29 @@ arm 和 hand 的真实实现不再放在 `linkerbot` 包内。`linkerbot` 只负
 ```text
 src/linkerbot_arm/
 ├── __init__.py
-├── arm/
-├── common/
-├── kinetix/
+├── arm/                 # 包含 common/、kinetix/ 及各型号
+├── comm/                # 阶段 4 删除重复通信实现
 ├── motion_timer.py
 ├── relay.py
 ├── queue/
 └── exceptions.py
 ```
 
-- [ ] 将 `src/linkerbot/arm` 迁移到 `src/linkerbot_arm/arm`。
-- [ ] 将内部导入全部改为 `linkerbot_arm.*`。
-- [ ] 保留 A7、A7lite、P7 的类结构、方法签名、私有方法和 URDF 资源。
-- [ ] 保留 `motion_timer`、`relay`、`queue` 作为 arm 的本地运行时工具。
-- [ ] 将 `linkerbot-arm` 的发行包名和 Python 模块名分离：发行名为 `linkerbot-arm`，模块名为 `linkerbot_arm`。
-- [ ] 确保 arm wheel 不包含 `linkerbot/arm`。
-- [ ] 暂时不增加 `linkerbot` 兼容 shim；兼容 shim 统一放到后续聚合包。
+- [x] 将 `src/linkerbot/arm` 迁移到 `src/linkerbot_arm/arm`。
+- [x] 将内部导入全部改为 `linkerbot_arm.*`。
+- [x] 保留 A7、A7lite、P7 的类结构、方法签名、私有方法和 URDF 资源。
+- [x] 保留 `motion_timer`、`relay`、`queue` 作为 arm 的本地运行时工具。
+- [x] 将 `linkerbot-arm` 的发行包名和 Python 模块名分离：发行名为 `linkerbot-arm`，模块名为 `linkerbot_arm`。
+- [x] 确保源码树和 wheel 均不包含 `linkerbot/arm`。
+- [x] 暂时不增加 `linkerbot` 兼容 shim；兼容 shim 统一放到后续聚合包。
 
 阶段门禁：
 
-- [ ] `from linkerbot_arm import A7, A7lite, P7` 成功。
-- [ ] 六份 URDF 都能从已安装 wheel 加载。
-- [ ] API 快照通过。
-- [ ] 运动学、fake motor、无硬件 arm 测试通过。
-- [ ] arm 仓库不再依赖 `linkerbot` 自身路径。
+- [x] `from linkerbot_arm import A7, A7lite, P7` 成功。
+- [x] 在源码目录之外安装 wheel，加载六份 URDF 并验证 12 种 FK/IK 组合。
+- [x] API 快照通过。
+- [x] 运动学、fake motor、无硬件测试通过；构造与关闭生命周期测试仍待阶段 1 补齐。
+- [x] arm 源码和测试不再依赖旧 `linkerbot` 模块路径。
 
 回滚点：恢复命名空间迁移前的 arm commit；不涉及 transport 和 ROS2。
 
@@ -228,7 +227,7 @@ src/linkerbot_arm/
 
 ## 阶段 8：发布与真机验收
 
-- [ ] 构建并检查 arm wheel/sdist，确认包内容和依赖元数据。
+- [ ] 对完成 transport 替换后的最终发布候选重新构建 wheel/sdist，检查包内容和依赖元数据；阶段 2 产物检查已完成。
 - [ ] 在干净环境安装 arm、hand、transport，运行导入和测试矩阵。
 - [ ] 在干净环境安装聚合包，运行旧导入兼容测试。
 - [ ] ROS2 Jazzy 环境完成 NumPy、SciPy、Pinocchio 和 transport 组合验证。
@@ -265,6 +264,15 @@ src/linkerbot_arm/
 - [ ] 高层 `CANTransport` 只有在独立门禁全部通过后才启用。
 - [ ] 真机验证结果与未验证范围均记录在发布文档中。
 
+## 当前交付与验收记录
+
+- 分支：`refactor/phase-2-linkerbot-arm-namespace`
+- 提交：`62705e3`（命名空间迁移，原提交 `2ad6b92` 已变基）
+- 命名空间实现和打包已完成；阶段 0/1 尚有上述未勾选项，不能据此宣称阶段 0～2 全部门禁通过。
+- 验证结果与执行环境见 [验证记录](VALIDATION.md) 的 PR 复核部分。
+- 阶段 1 已合并到 `master`；本分支已变基到其 squash 提交，PR #3 仅包含阶段 2 增量。
+- 下一步：补齐前序门禁和命名空间相关使用文档，再进入阶段 3；ROS2 接入和旧导入门面分别在阶段 5、6 完成。
+
 ## 阶段 1 独立 PR 复核
 
 - 分支：`chore/phase-1-api-inventory`，目标 `master`；包含阶段 0 的基线文档。
@@ -273,4 +281,12 @@ src/linkerbot_arm/
 - Python 3.10：355 passed，12 项运动学测试跳过，38 项硬件测试排除。
 - Python 3.13（含 Pinocchio）：367 passed，38 项硬件测试排除。
 - Ruff、`git diff --check` 通过；测试均显式使用本分支 `src`。
-- 本次是拆分 PR 的准备，阶段 0/1 未勾选项完成前保持草稿，不将测试通过等同于全部验收完成。
+- 此处测试结果属于阶段 1 独立分支的验证记录。PR #2 已于 2026-09-15 合并；合并不自动改变前文尚未完成的测试待办。
+
+## 阶段 2 线性历史与冲突处理（2026-09-15）
+
+- [x] 确认远程默认分支为 `master`，阶段 1 squash 提交为 `67d4757`。
+- [x] 将阶段 2 变基到该提交，移除旧同步 merge，分支增量中 merge commit 数量为 0。
+- [x] 解决 API 快照、导入和 TODO 冲突，保留阶段 1 的 Enum 修复以及阶段 2 的 `linkerbot_arm` 命名空间。
+- [x] 对比变基前 `c0d1be9`，SDK 源码、测试、打包与 Ruff 配置内容完全一致。
+- [x] 变基后复测：Python 3.10 为 355 passed / 12 skipped / 38 deselected；Python 3.13 为 367 passed / 38 deselected；Ruff、差异空白检查通过。

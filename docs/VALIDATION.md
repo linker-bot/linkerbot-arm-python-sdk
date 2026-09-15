@@ -43,4 +43,27 @@ wheel/sdist 包含六份 URDF、`py.typed` 和许可证，且不包含 hand 模�
 
 本次没有连接实际机械臂，没有执行标定、使能、运动或急停实机操作。
 协议和时序实现保持上游内容，但部署现场仍需对 A7、A7lite、P7 做硬件验收。
-未执行远程推送、合并或包发布；新 SDK 的 Git 远程沿用已创建仓库的 origin。
+拆分基线及阶段 0～2 分支已推送到新 SDK 仓库 origin；当前尚未合并到 master、发布包或执行真机验收。
+
+## 命名空间 PR 复核（2026-09-15）
+
+本节验证 `linkerbot_arm` 开发分支；上文的 ROS2 64 项测试和 colcon 结果仅适用于拆分基线。
+当前 ROS2 loader 仍导入 `linkerbot.arm`，不能以历史结果证明新命名空间已兼容 ROS2。
+
+| 检查 | 结果 |
+| --- | --- |
+| Python 3.10.20 最低依赖 | 355 passed，12 项因未安装 Pinocchio 跳过，38 项硬件测试排除 |
+| Python 3.13.14，源码目录外安装 wheel | 367 passed，38 项硬件测试排除；六份 URDF、12 种 FK/IK 组合通过 |
+| wheel/sdist | 构建通过；各含六份 URDF；wheel 包含 `py.typed`，不含 `linkerbot/` |
+| 静态与依赖检查 | `ruff check src tests tools`、`git diff --check`、`uv pip check` 通过 |
+
+wheel 环境：NumPy 2.5.3、SciPy 1.18.1、Pinocchio 4.1.0、Pydantic 2.13.5、python-can 4.6.1、pytest 8.4.2。
+产物与隔离环境位于 `/tmp/linkerbot-arm-pr-gj48plpn`。测试清除了 ROS2 的 `PYTHONPATH`，
+设置 `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`，未运行真机用例。
+
+复核修复了 Ruff 豁免目录仍指向旧命名空间的问题，以及快照将 Python 3.10/3.13 的 Enum
+自动生成签名和方法差异误判为 SDK 变化的问题。枚举改为核对 SDK 成员名与值，
+源码定义的方法仍由原始 AST 签名基线校验。
+
+阶段 0/1 的剩余兼容门禁、transport 替换、详细文档迁移、ROS2 新导入适配和聚合包旧导入门面
+尚未完成，实际完成情况见主 TODO。本分支的版本字段为 0.6.0，但尚未发布该版本。

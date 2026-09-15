@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from linkerbot.arm.a7.motor import SensorType
+from linkerbot_arm.arm.a7.motor import SensorType
 
 NUM_JOINTS = 7
 

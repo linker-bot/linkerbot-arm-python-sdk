@@ -5,7 +5,7 @@ Only executed when explicitly selected via: -m extra
 
 import pytest
 
-from linkerbot.arm import A7lite
+from linkerbot_arm.arm import A7lite
 from tests.arm.a7_lite.conftest import NUM_JOINTS, get_pid_params
 from tests.conftest import InteractiveSession
 

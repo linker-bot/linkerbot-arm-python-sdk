@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 import can
 
-from linkerbot.exceptions import CANError, ValidationError
+from linkerbot_arm.exceptions import CANError, ValidationError
 
 from .types import CanInterface
 

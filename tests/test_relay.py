@@ -4,8 +4,8 @@ import threading
 
 import pytest
 
-from linkerbot.exceptions import TimeoutError
-from linkerbot.relay import DataRelay
+from linkerbot_arm.exceptions import TimeoutError
+from linkerbot_arm.relay import DataRelay
 
 
 def test_request_captures_response_pushed_during_send() -> None:

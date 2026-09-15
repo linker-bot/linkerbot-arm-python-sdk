@@ -7,8 +7,8 @@ import time
 
 import pytest
 
-from linkerbot.exceptions import StateError
-from linkerbot.queue import IterableQueue
+from linkerbot_arm.exceptions import StateError
+from linkerbot_arm.queue import IterableQueue
 
 
 def test_get_honors_timeout() -> None:

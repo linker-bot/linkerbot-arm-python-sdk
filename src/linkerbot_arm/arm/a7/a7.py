@@ -8,7 +8,7 @@ from typing import Literal
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-from linkerbot.arm.a7.consts import (
+from linkerbot_arm.arm.a7.consts import (
     DEFAULT_POLL_INTERVALS,
     MAX_ACCELERATION,
     MAX_VELOCITY,
@@ -24,10 +24,10 @@ from linkerbot.arm.a7.consts import (
     MOVE_L_MAX_MAX_VELOCITY,
     NUM_JOINTS,
 )
-from linkerbot.arm.common import ControlMode, Pose, State
-from linkerbot.comm import CanInterface, CANMessageDispatcher
-from linkerbot.exceptions import StateError, ValidationError
-from linkerbot.motion_timer import MotionTimer
+from linkerbot_arm.arm.common import ControlMode, Pose, State
+from linkerbot_arm.comm import CanInterface, CANMessageDispatcher
+from linkerbot_arm.exceptions import StateError, ValidationError
+from linkerbot_arm.motion_timer import MotionTimer
 
 from .motor import A7Motor, SensorType
 
@@ -64,7 +64,7 @@ class A7:
             A7Motor(id, self._can_dispatcher)
             for id in (range(61, 68) if side == "left" else range(51, 58))
         ]
-        from linkerbot.arm.kinetix import ArmKinetix
+        from linkerbot_arm.arm.kinetix import ArmKinetix
 
         self._kx: ArmKinetix = ArmKinetix.from_builtin(
             "a7", side, tcp_offset=tcp_offset, world_frame=world_frame

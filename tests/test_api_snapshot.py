@@ -7,12 +7,12 @@ import json
 from enum import Enum
 from pathlib import Path
 
-from linkerbot import A7, P7, A7lite, ControlMode, Pose
-from linkerbot.arm import State, WayPoint
-from linkerbot.arm.a7.motor import A7Motor
-from linkerbot.arm.p7.motor_v2 import MotorV2
-from linkerbot.comm.can import CanInterface, CANMessageDispatcher
-from linkerbot.exceptions import (
+from linkerbot_arm import A7, P7, A7lite, ControlMode, Pose
+from linkerbot_arm.arm import State, WayPoint
+from linkerbot_arm.arm.a7.motor import A7Motor
+from linkerbot_arm.arm.p7.motor_v2 import MotorV2
+from linkerbot_arm.comm.can import CanInterface, CANMessageDispatcher
+from linkerbot_arm.exceptions import (
     CANError,
     LinkerbotError,
     StateError,
@@ -33,22 +33,22 @@ SNAPSHOT = json.loads(
 )
 
 _CLASSES = {
-    "linkerbot.A7": A7,
-    "linkerbot.A7lite": A7lite,
-    "linkerbot.P7": P7,
-    "linkerbot.arm.Pose": Pose,
-    "linkerbot.arm.State": State,
-    "linkerbot.arm.WayPoint": WayPoint,
-    "linkerbot.arm.ControlMode": ControlMode,
-    "linkerbot.arm.a7.motor.A7Motor": A7Motor,
-    "linkerbot.arm.p7.motor_v2.MotorV2": MotorV2,
-    "linkerbot.comm.can.CANMessageDispatcher": CANMessageDispatcher,
-    "linkerbot.comm.can.CanInterface": CanInterface,
-    "linkerbot.exceptions.LinkerbotError": LinkerbotError,
-    "linkerbot.exceptions.TimeoutError": TimeoutError,
-    "linkerbot.exceptions.CANError": CANError,
-    "linkerbot.exceptions.ValidationError": ValidationError,
-    "linkerbot.exceptions.StateError": StateError,
+    "linkerbot_arm.A7": A7,
+    "linkerbot_arm.A7lite": A7lite,
+    "linkerbot_arm.P7": P7,
+    "linkerbot_arm.arm.Pose": Pose,
+    "linkerbot_arm.arm.State": State,
+    "linkerbot_arm.arm.WayPoint": WayPoint,
+    "linkerbot_arm.arm.ControlMode": ControlMode,
+    "linkerbot_arm.arm.a7.motor.A7Motor": A7Motor,
+    "linkerbot_arm.arm.p7.motor_v2.MotorV2": MotorV2,
+    "linkerbot_arm.comm.can.CANMessageDispatcher": CANMessageDispatcher,
+    "linkerbot_arm.comm.can.CanInterface": CanInterface,
+    "linkerbot_arm.exceptions.LinkerbotError": LinkerbotError,
+    "linkerbot_arm.exceptions.TimeoutError": TimeoutError,
+    "linkerbot_arm.exceptions.CANError": CANError,
+    "linkerbot_arm.exceptions.ValidationError": ValidationError,
+    "linkerbot_arm.exceptions.StateError": StateError,
 }
 
 

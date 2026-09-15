@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from linkerbot.arm import A7lite
+from linkerbot_arm.arm import A7lite
 from tests.arm.a7_lite.conftest import prepare_interactive_test
 from tests.conftest import InteractiveSession
 

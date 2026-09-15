@@ -6,9 +6,9 @@ from typing import Any
 
 import pytest
 
-from linkerbot.comm.canfd import CANFDConfigOptions, CANFDMessage
-from linkerbot.comm.canfd import ctypes_backend as backend
-from linkerbot.exceptions import CANError, ValidationError
+from linkerbot_arm.comm.canfd import CANFDConfigOptions, CANFDMessage
+from linkerbot_arm.comm.canfd import ctypes_backend as backend
+from linkerbot_arm.exceptions import CANError, ValidationError
 
 
 class FakeFunction:

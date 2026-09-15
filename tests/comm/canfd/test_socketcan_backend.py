@@ -14,12 +14,12 @@ from unittest import mock
 
 import pytest
 
-from linkerbot.comm.canfd import (
+from linkerbot_arm.comm.canfd import (
     CANFDBackend,
     CANFDMessage,
     SocketCANFDBackend,
 )
-from linkerbot.exceptions import CANError, ValidationError
+from linkerbot_arm.exceptions import CANError, ValidationError
 
 pytestmark = [pytest.mark.canfd]
 
@@ -61,7 +61,7 @@ def _link_show_payload(
 def fake_can_bus():
     """Stub ``can.Bus`` so SocketCANFDBackend.__init__ does not open a real socket."""
     with mock.patch(
-        "linkerbot.comm.canfd.socketcan_backend.can.Bus", autospec=True
+        "linkerbot_arm.comm.canfd.socketcan_backend.can.Bus", autospec=True
     ) as bus_cls:
         instance = mock.MagicMock()
         bus_cls.return_value = instance
@@ -71,7 +71,7 @@ def fake_can_bus():
 @pytest.fixture
 def with_ip_present():
     with mock.patch(
-        "linkerbot.comm.canfd.socketcan_backend.shutil.which",
+        "linkerbot_arm.comm.canfd.socketcan_backend.shutil.which",
         return_value="/usr/sbin/ip",
     ):
         yield
@@ -82,7 +82,7 @@ def link_show(monkeypatch: pytest.MonkeyPatch) -> LinkShowFake:
     """Patch subprocess.run; default returns a 'link not configured' result."""
     fake_run = LinkShowFake()
     monkeypatch.setattr(
-        "linkerbot.comm.canfd.socketcan_backend.subprocess.run", fake_run
+        "linkerbot_arm.comm.canfd.socketcan_backend.subprocess.run", fake_run
     )
     return fake_run
 
@@ -479,7 +479,7 @@ def test_close_is_idempotent_and_blocks_further_io(
 
 def test_missing_ip_command_raises(fake_can_bus) -> None:
     with mock.patch(
-        "linkerbot.comm.canfd.socketcan_backend.shutil.which", return_value=None
+        "linkerbot_arm.comm.canfd.socketcan_backend.shutil.which", return_value=None
     ):
         with pytest.raises(CANError, match="iproute2"):
             SocketCANFDBackend(channel="can0")

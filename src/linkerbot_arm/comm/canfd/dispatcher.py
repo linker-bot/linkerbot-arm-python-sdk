@@ -9,7 +9,7 @@ from concurrent.futures import Future
 from dataclasses import dataclass
 from pathlib import Path
 
-from linkerbot.exceptions import CANError, StateError, ValidationError
+from linkerbot_arm.exceptions import CANError, StateError, ValidationError
 
 from .ctypes_backend import CANFDInterface
 from .types import CANFDBackend, CANFDConfigOptions, CANFDMessage

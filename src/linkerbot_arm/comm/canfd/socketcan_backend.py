@@ -30,7 +30,7 @@ import threading
 
 import can
 
-from linkerbot.exceptions import CANError, ValidationError
+from linkerbot_arm.exceptions import CANError, ValidationError
 
 from .types import (
     CANFD_DEFAULT_DATA_BAUD,
@@ -79,7 +79,7 @@ class _LinkState:
 class SocketCANFDBackend:
     """Linux SocketCAN backend in CAN FD mode.
 
-    Implements :class:`linkerbot.comm.canfd.CANFDBackend`. Construct one of
+    Implements :class:`linkerbot_arm.comm.canfd.CANFDBackend`. Construct one of
     these and pass it to :class:`CANFDMessageDispatcher` via ``interface=`` to
     use SocketCAN instead of the vendor ctypes backend.
     """

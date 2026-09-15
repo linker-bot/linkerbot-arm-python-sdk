@@ -1,4 +1,4 @@
-"""LinkerBot arm SDK, preserving the original linkerbot import paths.
+"""LinkerBot arm SDK, providing the canonical linkerbot_arm import paths.
 
 Arm exports are loaded lazily; importing the package does not load Pinocchio.
 """
@@ -24,18 +24,18 @@ if TYPE_CHECKING:  # pragma: no cover - import-time only for static checkers
 # Adding a new public re-export here is the only change required to surface it
 # at the top level without forcing eager import of its subpackage.
 _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
-    "A7": ("linkerbot.arm", "A7"),
-    "P7": ("linkerbot.arm", "P7"),
-    "A7lite": ("linkerbot.arm", "A7lite"),
-    "ControlMode": ("linkerbot.arm", "ControlMode"),
-    "Pose": ("linkerbot.arm", "Pose"),
+    "A7": ("linkerbot_arm.arm", "A7"),
+    "P7": ("linkerbot_arm.arm", "P7"),
+    "A7lite": ("linkerbot_arm.arm", "A7lite"),
+    "ControlMode": ("linkerbot_arm.arm", "ControlMode"),
+    "Pose": ("linkerbot_arm.arm", "Pose"),
 }
 
 
 def __getattr__(name: str) -> Any:
     target = _LAZY_EXPORTS.get(name)
     if target is None:
-        raise AttributeError(f"module 'linkerbot' has no attribute {name!r}")
+        raise AttributeError(f"module 'linkerbot_arm' has no attribute {name!r}")
     module_name, attr = target
     value = getattr(importlib.import_module(module_name), attr)
     globals()[name] = value

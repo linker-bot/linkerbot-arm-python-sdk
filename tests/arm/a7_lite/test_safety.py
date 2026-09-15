@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from linkerbot.arm import A7lite
+from linkerbot_arm.arm import A7lite
 from tests.conftest import InteractiveSession
 
 pytestmark = [pytest.mark.hardware, pytest.mark.a7_lite, pytest.mark.interactive, pytest.mark.safety]

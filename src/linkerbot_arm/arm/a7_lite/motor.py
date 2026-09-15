@@ -4,16 +4,16 @@ from enum import Enum
 
 import can
 
-from linkerbot.arm.common import ControlMode
-from linkerbot.arm.common.model import (
+from linkerbot_arm.arm.common import ControlMode
+from linkerbot_arm.arm.common.model import (
     AccelerationState,
     AngleState,
     TemperatureState,
     TorqueState,
     VelocityState,
 )
-from linkerbot.comm import CANMessageDispatcher
-from linkerbot.relay import DataRelay
+from linkerbot_arm.comm import CANMessageDispatcher
+from linkerbot_arm.relay import DataRelay
 
 _MASTER_ID = 0xFD
 

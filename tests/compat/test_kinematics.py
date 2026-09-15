@@ -11,9 +11,9 @@ import pytest
 @pytest.mark.parametrize("world_frame", ["urdf", "maestro"])
 def test_builtin_kinematics(arm_type, side, world_frame):
     pytest.importorskip("pinocchio")
-    from linkerbot.arm.kinetix import ArmKinetix
+    from linkerbot_arm.arm.kinetix import ArmKinetix
 
-    resource = importlib.resources.files("linkerbot.arm.kinetix.urdf")
+    resource = importlib.resources.files("linkerbot_arm.arm.kinetix.urdf")
     assert (resource / f"{arm_type}__{side}.urdf").is_file()
     kx = ArmKinetix.from_builtin(
         arm_type, side, tcp_offset=[0.01, 0.02, 0.03], world_frame=world_frame
