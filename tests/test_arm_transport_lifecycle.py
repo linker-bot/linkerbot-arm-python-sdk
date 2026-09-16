@@ -103,7 +103,10 @@ def test_constructor_and_normal_close_order(constructed_arm, side, first_id):
     assert isinstance(arm._can_dispatcher, TransportDispatcher)
     assert arm.can_interface is arm._can_dispatcher.can_interface
     assert arm._closed is False
-    assert arm._control_mode is None
+    if cls is A7lite:
+        assert arm.control_modes is None
+    else:
+        assert arm._control_mode is None
     kinds = ["A7liteMotor"] * 7 if cls is A7lite else ["A7Motor"] * 7
     if cls is P7:
         kinds[5:] = ["MotorV2"] * 2

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.1 — Unreleased
+
+- Add A7lite RS00 private-protocol MIT and CSP modes, per-joint mode selection,
+  mixed-mode target streaming and CSP speed limits from the full SDK's #177.
+- Stop each joint using its configured mode: PP/CSP zero their respective speed
+  limits temporarily; MIT commands a hold at the measured position. Mode changes
+  stop every motor before writing the new mode; call `enable()` afterwards.
+- Validate complete angle batches before sending, including non-finite and float32-overflow targets with soft-limit checks disabled.
+- Preserve existing PP signatures, `ControlMode.PP` value, ROS2 `_set_angles`
+  integration, lazy kinematics loading and transport 1.0.0 compatibility.
+
 ## 0.6.0 — Unreleased
 
 - Import the SDK through `linkerbot_arm`. This distribution does not provide the old

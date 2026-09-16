@@ -1,6 +1,6 @@
 [project]
 name = "linkerbot-arm"
-version = "0.6.0"
+version = "0.6.1"
 description = "LinkerBot A7, A7lite and P7 robotic arm Python SDK"
 readme = "README.md"
 authors = [{ name = "LinkerBot" }, { name = "Jason Yip", email = "yezi.2022@outlook.com" }]

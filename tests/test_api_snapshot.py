@@ -65,7 +65,8 @@ def test_pre_migration_api_snapshot_is_current() -> None:
             # Enum's generated constructor differs between Python versions.
             # The SDK contract is the declared member names and values.
             members = {name: member.value for name, member in cls.__members__.items()}
-            assert members == expected["members"]
+            additions = {"MIT": 2, "CSP": 3} if cls is ControlMode else {}
+            assert members == expected["members"] | additions
             # Generated Enum internals vary too; source-defined methods are
             # covered by tests/compat/test_api.py against the upstream snapshot.
             continue
@@ -87,4 +88,22 @@ def test_pre_migration_api_snapshot_is_current() -> None:
             for name, obj in cls.__dict__.items()
             if (callable(obj) and (not name.startswith("__") or name == "__init__"))
         }
-        assert methods == expected["methods"]
+        if cls is A7lite:
+            # Keep the frozen signatures; approve only the explicit additions.
+            for name, signature in expected["methods"].items():
+                assert methods[name] == signature, name
+            assert methods.keys() - expected["methods"].keys() == {
+                "_modes_or_pp",
+                "_all_modes_are",
+                "_any_mode_is",
+                "_hold_mit_joint",
+                "_validate_mit_joint",
+                "set_control_modes",
+                "set_mits",
+                "stream_joint_targets",
+                "set_csp_angles",
+                "set_limit_spds",
+                "get_limit_spds",
+            }
+        else:
+            assert methods == expected["methods"]

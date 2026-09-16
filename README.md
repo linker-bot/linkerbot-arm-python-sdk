@@ -1,6 +1,7 @@
 # LinkerBot Arm Python SDK
 
 用于 **A7、A7lite、P7** 机械臂的 Python SDK，支持关节控制、状态读取和正逆运动学。
+A7lite 0.6.1 新增 MIT/CSP、逐关节模式与混合控制，见 [控制模式](docs/zh/src/reference/a7lite/README.md#控制模式)。
 Python 3.10+；发行包名为 `linkerbot-arm`，导入名为 `linkerbot_arm`。
 
 ## 安装

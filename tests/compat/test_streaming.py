@@ -13,6 +13,8 @@ def arm(request):
     device._motors = [Mock() for _ in range(7)]
     device._kx = Mock()
     device._kx.get_joint_limits.return_value = [(-1.0, 1.0)] * 7
+    if request.param is A7lite:
+        device._control_modes = None
     return device
 
 
