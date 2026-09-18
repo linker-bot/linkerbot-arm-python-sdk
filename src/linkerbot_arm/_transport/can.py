@@ -28,6 +28,8 @@ from linkerbot_transport.errors import ValidationError as TransportValidationErr
 
 from linkerbot_arm.exceptions import CANError, StateError, TimeoutError, ValidationError
 
+from .targets import TargetQueueMixin
+
 logger = logging.getLogger(__name__)
 
 
@@ -71,7 +73,7 @@ def _raise_mapped(error: BaseException):
     raise mapped from error
 
 
-class ManagedCANDispatcher:
+class ManagedCANDispatcher(TargetQueueMixin):
     """Internal, exclusively owned connection for one arm.
 
     Recovery means closing this arm and constructing a fresh one, which reruns
@@ -92,6 +94,7 @@ class ManagedCANDispatcher:
         side: str,
         on_bus_error: Callable[[Exception], None] | None = None,
     ) -> None:
+        self._init_target_queue()
         self._lock = threading.RLock()
         self._lifecycle_lock = threading.RLock()
         self._callbacks = []
@@ -156,6 +159,11 @@ class ManagedCANDispatcher:
             except Exception as error:
                 _raise_mapped(error)
         return None
+
+    def _submit_target_frames(self, frames, **options):
+        with self._lock:
+            self._require_running()
+            return self._tx.submit_fifo_batch(frames, endpoint_id="arm", **options)
 
     def _require_running(self) -> None:
         if self._error is not None:
@@ -227,6 +235,9 @@ class ManagedCANDispatcher:
                     logger.exception("CANTransport fault cleanup failed; retry close")
 
     def stop(self) -> None:
+        periodic = getattr(self, "_arm_periodic_scheduler", None)
+        if periodic is not None:
+            periodic.close()
         errors = []
         with self._lifecycle_lock:
             with self._lock:

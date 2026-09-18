@@ -21,6 +21,11 @@ import time
 
 import can
 
+from linkerbot_arm._transport.targets import (
+    PreparedTarget,
+    TargetQueueMixin,
+    submit_targets,
+)
 from linkerbot_arm.arm.a7.motor import SensorType  # re-exported for parity with A7Motor
 from linkerbot_arm.arm.common import ControlMode
 from linkerbot_arm.arm.common.model import (
@@ -32,6 +37,7 @@ from linkerbot_arm.arm.common.model import (
 )
 from linkerbot_arm.comm import CANMessageDispatcher
 from linkerbot_arm.exceptions import TimeoutError
+from linkerbot_arm.periodic import PeriodicTask, scheduler_for
 from linkerbot_arm.relay import DataRelay
 
 logger = logging.getLogger(__name__)
@@ -250,16 +256,18 @@ class MotorV2:
         kp_vel_q = _quantize(self._velocity_kp, _KP_VEL_MIN, _KP_VEL_MAX, 8)
         kd_vel_q = _quantize(self._velocity_kd, _KD_VEL_MIN, _KD_VEL_MAX, 8)
         ki_vel_q = _quantize(self._velocity_ki, _KI_VEL_MIN, _KI_VEL_MAX, 8)
-        return bytes([
-            (theta_q >> 8) & 0xFF,
-            theta_q & 0xFF,
-            v_q,
-            kp_pos_q,
-            kd_pos_q,
-            kp_vel_q,
-            kd_vel_q,
-            ki_vel_q,
-        ])
+        return bytes(
+            [
+                (theta_q >> 8) & 0xFF,
+                theta_q & 0xFF,
+                v_q,
+                kp_pos_q,
+                kd_pos_q,
+                kp_vel_q,
+                kd_vel_q,
+                ki_vel_q,
+            ]
+        )
 
     def _on_message(self, msg: can.Message) -> None:
         if msg.arbitration_id == self._id:
@@ -364,19 +372,30 @@ class MotorV2:
     # ------------------------------------------------------------------ #
 
     def set_angle(self, angle: float) -> None:
-        self._control_angle = AngleState(angle=angle, timestamp=time.time())
+        submit_targets((self._prepare_angle(angle),), enforce_age=False)
+
+    def _prepare_angle(self, angle: float) -> PreparedTarget:
         v_ref = (
             self._control_velocity.velocity
             if hasattr(self, "_control_velocity")
             else 0.0
         )
-        self._send_control(self._build_servo_frame(angle, v_ref))
+        message = can.Message(
+            arbitration_id=self._id,
+            is_extended_id=False,
+            data=self._build_servo_frame(angle, v_ref),
+        )
+        return PreparedTarget(
+            self,
+            message,
+            {
+                "_control_angle": AngleState(angle=angle, timestamp=time.time()),
+            },
+        )
 
     def set_velocity(self, velocity: float) -> None:
         # Cached as V_ref for the next Servo control frame.
-        self._control_velocity = VelocityState(
-            velocity=velocity, timestamp=time.time()
-        )
+        self._control_velocity = VelocityState(velocity=velocity, timestamp=time.time())
 
     def set_acceleration(self, acceleration: float) -> None:
         # Servo mode has no drive-side acceleration limit; cache for callers
@@ -453,9 +472,7 @@ class MotorV2:
         # Acceleration is host-side only; pick a conservative default to
         # match A7lite's defaults so ``P7.set_accelerations`` validation
         # passes if callers query before setting.
-        self._control_acceleration = AccelerationState(
-            acceleration=10.0, timestamp=now
-        )
+        self._control_acceleration = AccelerationState(acceleration=10.0, timestamp=now)
 
     def has_initial_data(self) -> bool:
         return all(
@@ -475,45 +492,41 @@ class MotorV2:
     # Polling = heartbeat
     # ------------------------------------------------------------------ #
 
-    def start_polling(
-        self, intervals: dict[SensorType, float] | None = None
-    ) -> None:
-        """Start the heartbeat thread.
-
-        ``intervals`` is accepted for parity with
-        :meth:`A7Motor.start_polling` but ignored — this motor does not need
-        polling. Feedback frames arrive automatically from each control
-        frame; the heartbeat thread simply keeps that frame flow alive while
-        the host is idle.
-        """
-        del intervals  # unused; kept for interface compatibility
-        if self._heartbeat_thread is not None and self._heartbeat_thread.is_alive():
-            return
+    def start_polling(self, intervals: dict[SensorType, float] | None = None) -> None:
+        """Schedule the existing idle heartbeat on the arm's shared worker."""
         self._stop_event.clear()
-        self._heartbeat_thread = threading.Thread(
-            target=self._heartbeat_loop,
-            daemon=True,
-            name=f"MotorV2.heartbeat_{self._id}",
+        scheduler_for(self._dispatcher).replace(
+            self, [PeriodicTask(_HEARTBEAT_INTERVAL_S, self._heartbeat_once)]
         )
-        self._heartbeat_thread.start()
 
     def stop_polling(self) -> None:
         self._stop_event.set()
-        if self._heartbeat_thread is not None:
-            self._heartbeat_thread.join(timeout=2.0)
-            self._heartbeat_thread = None
+        scheduler = getattr(self._dispatcher, "_arm_periodic_scheduler", None)
+        if scheduler is not None:
+            scheduler.remove(self)
+
+    def _heartbeat_once(self, notify) -> None:
+        if hasattr(self, "_control_angle"):
+
+            def build_message():
+                return can.Message(
+                    arbitration_id=self._id,
+                    is_extended_id=False,
+                    data=self._build_servo_frame(self._control_angle.angle, v_ref=0.0),
+                )
+
+            if isinstance(self._dispatcher, TargetQueueMixin):
+                self._dispatcher.send_heartbeat(self, build_message)
+            else:
+                self._dispatcher.send(build_message())
 
     def _heartbeat_loop(self) -> None:
+        """Legacy private loop; normal heartbeats use the shared scheduler."""
         while not self._stop_event.is_set():
             try:
-                if hasattr(self, "_control_angle"):
-                    # V_ref = 0 means "hold this angle" (rigid hold via PD).
-                    frame = self._build_servo_frame(
-                        self._control_angle.angle, v_ref=0.0
-                    )
-                    self._send_control(frame)
+                self._heartbeat_once(None)
             except Exception:
-                logger.exception("Heartbeat error on motor %d", self._id)
+                logger.exception("Motor %d heartbeat failed", self._id)
             self._stop_event.wait(_HEARTBEAT_INTERVAL_S)
 
     # ------------------------------------------------------------------ #
@@ -521,13 +534,19 @@ class MotorV2:
     # ------------------------------------------------------------------ #
 
     def _read_flash_param(self, index: int, timeout_s: float = 1.0) -> bytes:
-        request = bytes([
-            _FLASH_FRAME_HEADER, index & 0xFF,
-            0x00, 0x00, 0x00, 0x00,
-            _FLASH_CMD_READ, _FLASH_FRAME_FOOTER,
-        ])
-        self._send_flash(request)
-        return self._flash_relay.wait(timeout_s)
+        request = bytes(
+            [
+                _FLASH_FRAME_HEADER,
+                index & 0xFF,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                _FLASH_CMD_READ,
+                _FLASH_FRAME_FOOTER,
+            ]
+        )
+        return self._flash_relay.request(lambda: self._send_flash(request), timeout_s)
 
     def _write_flash_param(self, index: int, data: bytes) -> None:
         if len(data) != 4:

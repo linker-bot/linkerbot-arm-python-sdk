@@ -9,8 +9,7 @@ from dataclasses import FrozenInstanceError
 
 import can
 import pytest
-from linkerbot_transport import errors
-from linkerbot_transport.can.can import CANMessageDispatcher as TransportDispatcher
+from linkerbot_transport import TransmitArbiter, errors
 from linkerbot_transport.can.types import CanInterface as TransportInterface
 
 from linkerbot_arm import exceptions
@@ -36,7 +35,9 @@ def test_legacy_exceptions_keep_arguments_identity_and_transport_category(
     assert isinstance(error, exceptions.LinkerbotError)
     assert isinstance(error, category)
     assert error.code == category.code
-    baseline = builtins.TimeoutError(*args) if name == "TimeoutError" else Exception(*args)
+    baseline = (
+        builtins.TimeoutError(*args) if name == "TimeoutError" else Exception(*args)
+    )
     assert error.args == baseline.args
     assert str(error) == str(baseline)
     restored = pickle.loads(pickle.dumps(error))
@@ -61,12 +62,16 @@ def test_send_discards_receipt_without_waiting(monkeypatch):
 
     sent = []
 
-    def send(self, message):
+    def send(self, message, *, endpoint_id):
         sent.append(message)
         return UnusableReceipt()
 
-    monkeypatch.setattr(TransportDispatcher, "send", send)
+    monkeypatch.setattr(TransmitArbiter, "submit_fifo", send)
     dispatcher = CANMessageDispatcher.__new__(CANMessageDispatcher)
+    dispatcher._error_lock = threading.Lock()
+    dispatcher._running = True
+    dispatcher._bus_error = None
+    dispatcher._tx = TransmitArbiter(lambda message: None)
     message = can.Message(arbitration_id=61, data=b"\x06", is_extended_id=False)
     assert dispatcher.send(message) is None
     assert sent == [message]
@@ -81,11 +86,15 @@ def test_send_discards_receipt_without_waiting(monkeypatch):
     ],
 )
 def test_send_preserves_legacy_error_types(monkeypatch, error, expected):
-    def send(self, message):
+    def send(self, message, *, endpoint_id):
         raise error
 
-    monkeypatch.setattr(TransportDispatcher, "send", send)
+    monkeypatch.setattr(TransmitArbiter, "submit_fifo", send)
     dispatcher = CANMessageDispatcher.__new__(CANMessageDispatcher)
+    dispatcher._error_lock = threading.Lock()
+    dispatcher._running = True
+    dispatcher._bus_error = None
+    dispatcher._tx = TransmitArbiter(lambda message: None)
     with pytest.raises(expected) as caught:
         dispatcher.send(can.Message(arbitration_id=61))
     assert type(caught.value) is expected

@@ -1,21 +1,31 @@
 # CAN 后端选择
 
-A7、A7lite、P7 默认继续使用 dispatcher 后端。可选的 `CANTransport` 后端用于本地和设备验收，构造函数及 `enable()`、`_set_angles()`、运动、状态和 `close()` 的调用方式不变。
+A7、A7lite、P7 默认使用 `CANTransport` 后端。构造函数及 `enable()`、`_set_angles()`、运动、状态和 `close()` 的调用方式不变；需要低层后端时可显式选择 dispatcher。
 
-## 从固定源码启用
+## 从固定源码安装
 
 在 arm 仓库根目录的独立 Python 环境中执行：
 
 ```bash
-python -m pip install --force-reinstall --no-deps -r requirements/cantransport.txt
+python -m pip install --force-reinstall --no-deps -r requirements/transport.txt
 python -m pip install -e '.[kinetix]'
 python -m pip check
-export LINKERBOT_ARM_TRANSPORT=cantransport
 ```
 
-`requirements/cantransport.txt` 固定提供协议路由能力的 transport 源码提交；当前发行版本号不能区分这项源码能力，需按该清单安装。安装命令本身不连接硬件；设置变量后，新建 arm 对象仍按原行为打开通道、检查电机和读取初始状态。
+`requirements/transport.txt` 固定提供批次准入和协议路由能力的 transport 源码提交，两个后端都需要安装；`requirements/cantransport.txt` 保留为同一清单的兼容入口。当前发行版本号不能区分这项源码能力，需按固定提交安装。安装命令本身不连接硬件；新建 arm 对象仍按原行为打开通道、检查电机和读取初始状态。
 
-ROS2 环境按 [ROS2 接入](ROS2.md) 使用系统兼容的运动学依赖，安装基础 arm，省略 `kinetix` extra。启动个人 fork 的 ROS2 节点前设置相同环境变量，即可沿用现有 PP 控制调用；这不增加 ROS2 的 MIT/CSP Topic 或 Service。
+ROS2 环境按 [ROS2 接入](ROS2.md) 使用系统兼容的运动学依赖，安装基础 arm，省略 `kinetix` extra。个人 fork 的 ROS2 节点同样默认使用 `CANTransport`，沿用现有 PP 控制调用；这不增加 ROS2 的 MIT/CSP Topic 或 Service。
+
+## 选择后端
+
+| `LINKERBOT_ARM_TRANSPORT` | 新建 arm 使用的后端 |
+| --- | --- |
+| 未设置 | `CANTransport`（默认） |
+| `cantransport` | `CANTransport`（显式选择） |
+| `dispatcher` | 低层 dispatcher |
+
+变量在每次构造时读取，已存在实例不会切换后端。其他值（包括空字符串）会在打开通道前报错；高层连接失败也不会自动回退到 dispatcher。
+直接导入 `linkerbot_arm.comm.can.CANMessageDispatcher` 的既有入口仍使用低层实现，不受此变量影响。
 
 ## 控制与生命周期
 
@@ -29,20 +39,65 @@ ROS2 环境按 [ROS2 接入](ROS2.md) 使用系统兼容的运动学依赖，安
 
 高层路径中的队列满仍抛 `queue.Full`，故障后发送抛 arm `CANError`，正常关闭后发送抛 `RuntimeError`。输入校验、生命周期及超时错误映射到 arm 的 `ValidationError`、`StateError`、`TimeoutError`。
 
+## 统一周期调度
+
+A7 的七关节查询共用一个周期线程；P7 的五个 V1 电机查询和两个 V2 电机心跳也共用
+一个线程。A7lite 继续主动上报，不创建额外查询线程。`start_polling(intervals)` 与
+`stop_polling()` 调用不变；查询在回包或超时后再等待配置的间隔，保留原有频率语义。
+每个查询先登记响应等待者再发帧，快速回包不会丢失；单个关节超时不阻塞其他任务。
+
+## 整组目标与可选时延背压
+
+A7、A7lite、P7 的 `_set_angles()` 及 A7lite 的 `set_mits()`、`set_csp_angles()`、
+`stream_joint_targets()` 均先完成全部编码，再将整组目标一次性加入 FIFO。七帧空间
+不足时整组抛 `queue.Full`，控制目标缓存也不更新。组内帧不会被其他排队命令插入；
+物理发送仍逐帧进行，故障可能产生已发送的前缀，并不保证七个电机同时执行。
+
+默认只按容量准入，不过期、不合并、不自动丢弃旧目标。应用可为新提交的整组目标设置
+时间预算（秒）：
+
+```python
+arm.set_motion_queue_policy(max_target_age_s=0.02)
+arm._set_angles([0.0] * 7)  # 原调用与 None 返回值保持不变
+health = arm.get_motion_health()  # 只读本地状态，不发查询帧
+print(health.queue.oldest_pending_age_s, health.queue.pending_fifo)
+print(health.queue.rejected_stale, health.queue.expired, health.last_error)
+arm.set_motion_queue_policy(max_target_age_s=None)  # 后续提交恢复容量策略
+```
+
+- 队列或正在发送的工作已达到预算时，新的整组目标抛 arm `TimeoutError`；调用方应处理
+  该异常和 `queue.Full`，暂停目标生产或降低提交速率，避免持续积累时延。
+- 已接纳、尚未开始发送的目标组若超过预算，整组失败且零帧发送。开始后不会因截止时间
+  只发一半；物理故障或关闭仍可能中止剩余帧。因此预算约束的是开始发送前的年龄，
+  不承诺整个组的完成时刻。修改策略不会追溯修改已经入队的截止时间。
+- `last_outcome`、`last_sent_frames`、`last_frame_count`、`last_error` 描述最后一次已接纳的
+  目标提交。返回 `None` 只表示成功入队；通过健康状态观察异步发送失败。
+  `queue.failed`、`queue.expired` 为累计计数，可发现后续提交覆盖之前的失败。
+- `pending_fifo` 按帧计数；`in_flight_frames` 是当前正在处理的一组的总帧数。
+  `accepted/dispatched/failed/expired` 按提交计数，一组七帧只记一次。
+- 使能、失能、模式、标定、查询和单电机停止/保持命令继续使用普通 FIFO，不受目标年龄
+  策略丢弃。P7 心跳仅重发已成功发送的目标，跳过仍在等待或已失败的目标；过期后需
+  提交新的有效目标才恢复对应心跳，SDK 不自动重新使能或重放过期动作。
+
+以上保证适用于内置的两个 arm 后端。自行替换底层 dispatcher 的集成需自行提供批次准入能力。
+
 ## 故障恢复与回退
 
 当前不自动调用 transport 的 `recover()`。仅重新打开 CAN 无法恢复电机使能、控制模式及缓存状态；出现故障后，应停止应用的目标发送，关闭旧 arm，再构造新 arm 并按应用流程检查状态、配置模式和使能。未发送的旧队列不会重放。
 
-回退时先关闭当前 arm，再取消变量并创建新实例：
+回退时先关闭当前 arm，再在启动应用的环境显式选择 dispatcher 并创建新实例：
 
 ```bash
-unset LINKERBOT_ARM_TRANSPORT
-# 或明确选择默认后端：
 export LINKERBOT_ARM_TRANSPORT=dispatcher
 ```
 
-变量在每次构造时读取，已存在实例不会切换后端。其他值会在打开通道前报错。
+恢复默认高层后端时，先关闭当前 arm，再取消变量并重新启动应用：
+
+```bash
+unset LINKERBOT_ARM_TRANSPORT
+# 也可以显式设置：export LINKERBOT_ARM_TRANSPORT=cantransport
+```
 
 ## 验证边界
 
-高层后端仍为显式选择项。默认切换需完成相应设备上的延迟、反馈、停止及低速动作验收；virtual/vcan 测试不能代替这些结果。当前支持范围不包含臂手共用通道、CAN/CAN FD 混接或自动恢复运动。
+后端选择、协议收发与资源生命周期由本地和 virtual/vcan 回归覆盖；设备端延迟、反馈、停止及动作效果仍需在相应设备上验证，软件回归不能代替实机结果。当前支持范围不包含臂手共用通道、CAN/CAN FD 混接或自动恢复运动。

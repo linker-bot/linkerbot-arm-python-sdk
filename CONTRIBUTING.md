@@ -9,15 +9,15 @@
 - 共享通信代码与完整 SDK 的修复通过独立 commit 审阅、回归和按需移植，不自动复制覆盖。
 - transport 当前固定为 `1.0.0`。升级前验证 arm 接口、收发、关闭、ROS2 adapter 和独立 wheel，
   再一起更新依赖约束、CI 固定 commit 与安装文档；已发布的同版本包不得覆盖。
-- 可选高层后端的源码前置提交见 `requirements/cantransport.txt`；验收使用源码安装，
-  包版本暂不调整。默认后端保持 dispatcher，高层后端按 [说明](docs/TRANSPORT.md) 显式启用。
+- 两个 CAN 后端的源码前置提交见 `requirements/transport.txt`；验收使用源码安装，
+  包版本暂不调整。默认后端为 CANTransport，dispatcher 按 [说明](docs/TRANSPORT.md) 显式选择。
 - CAN/CAN FD 后端实现和测试由 transport 维护；arm 保留兼容层与消息模型的测试，
   包括既有异常、回执和关闭约定。升级时也验证与 hand 的共存安装及共享厂商库生命周期。
 - `docs/` 维护安装、快速开始、API 和用户迁移说明。临时 TODO、审查与过程记录放在
   本地 `.local-notes/`，该目录不纳入 Git 和发行包，用户文档不链接到该目录。
 
 ```bash
-# 先按 docs/INSTALLATION.md 安装 transport 1.0.0。
+# 先按 docs/INSTALLATION.md 安装固定的 transport 源码。
 python -m pip install -e '.[kinetix,test,dev]'
 python -m pytest
 python -m build

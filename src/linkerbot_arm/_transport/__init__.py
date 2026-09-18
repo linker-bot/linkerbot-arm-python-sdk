@@ -27,7 +27,7 @@ def _stop_background(arm):
 
 @contextmanager
 def arm_dispatcher(arm, model, side, name, backend, legacy_factory):
-    selection = os.environ.get("LINKERBOT_ARM_TRANSPORT", "dispatcher")
+    selection = os.environ.get("LINKERBOT_ARM_TRANSPORT", "cantransport")
     if selection == "dispatcher":
         yield legacy_factory(name, backend, on_bus_error=arm._on_bus_error)
         return

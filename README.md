@@ -3,10 +3,12 @@
 用于 **A7、A7lite、P7** 机械臂的 Python SDK，支持关节控制、状态读取和正逆运动学。
 A7lite 0.6.1 新增 MIT/CSP、逐关节模式与混合控制，见 [控制模式](docs/zh/src/reference/a7lite/README.md#控制模式)。
 Python 3.10+；发行包名为 `linkerbot-arm`，导入名为 `linkerbot_arm`。
+三款机械臂默认使用 `CANTransport`；设置 `LINKERBOT_ARM_TRANSPORT=dispatcher`
+可显式使用低层后端，现有构造和控制调用不变。见 [后端选择](docs/TRANSPORT.md)。
 
 ## 安装
 
-按[安装指南](docs/INSTALLATION.md)安装 `linkerbot-transport==1.0.0` 后，在本仓库目录执行：
+按[安装指南](docs/INSTALLATION.md)安装固定的 transport 源码后，在本仓库目录执行：
 
 ```bash
 python -m pip install -e '.[kinetix]'
@@ -24,7 +26,7 @@ from linkerbot_arm import A7
 
 with A7(side="left", interface_name="can0") as arm:
     print(arm.get_angles())  # 七个关节角，单位 rad
-    print(arm.get_pose())   # TCP 位姿
+    print(arm.get_pose())  # TCP 位姿
 ```
 
 使用 A7lite 或 P7 时，将 `A7` 换成对应类；右臂使用 `side="right"`。
@@ -44,7 +46,7 @@ from linkerbot_arm.arm import State, WayPoint
 - [A7lite API](docs/zh/src/reference/a7lite/README.md)
 - [P7 API](docs/zh/src/reference/p7/README.md)
 - [CAN 接口](docs/zh/src/reference/can.md)
-- [可选 CANTransport 后端与故障恢复](docs/TRANSPORT.md)
+- [CAN 后端选择与故障恢复](docs/TRANSPORT.md)
 - [ROS2 接入](docs/ROS2.md)
 - [从旧 SDK 迁移](docs/MIGRATION.md)
 - [版本变更](CHANGELOG.md)

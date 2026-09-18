@@ -2,6 +2,20 @@
 
 ## 0.6.1 — Unreleased
 
+- Default A7, A7lite and P7 to CANTransport. Keep explicit
+  `LINKERBOT_ARM_TRANSPORT=dispatcher` selection and existing constructors,
+  control calls and direct `CANMessageDispatcher` imports. Unsetting the variable
+  now restores CANTransport for newly constructed arms.
+- Use one periodic worker for A7 queries and P7 queries/heartbeats, preserving
+  configured intervals and A7lite unsolicited reporting. Register read waiters
+  before sending so synchronous or fast responses cannot be lost.
+- Atomically admit complete arm target groups and preserve target caches on
+  rejection. Add opt-in target age admission/expiration and zero-I/O motion
+  queue health; P7 heartbeats never revive expired or failed targets.
+- Both arm CAN backends use transport FIFO batches and require the source commit
+  in `requirements/transport.txt`. Public calls, FIFO ordering, 2000-frame
+  capacity and successful-send pacing remain compatible; no release is implied.
+
 - Add A7lite RS00 private-protocol MIT and CSP modes, per-joint mode selection,
   mixed-mode target streaming and CSP speed limits from the full SDK's #177.
 - Stop each joint using its configured mode: PP/CSP zero their respective speed

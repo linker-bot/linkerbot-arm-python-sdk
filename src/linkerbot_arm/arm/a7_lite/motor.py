@@ -4,6 +4,10 @@ from enum import Enum
 
 import can
 
+from linkerbot_arm._transport.targets import (
+    PreparedTarget,
+    submit_targets,
+)
 from linkerbot_arm.arm.a7_lite.consts import (
     MIT_KD_MAX,
     MIT_KD_MIN,
@@ -180,8 +184,21 @@ class A7liteMotor:
         self._send(CommType.Type4, b"\x01" + bytes(7))
 
     def set_angle(self, angle: float) -> None:
-        self._control_angle = AngleState(angle=angle, timestamp=time.time())
-        self._write_register_float(0x7016, angle)
+        submit_targets((self._prepare_angle(angle),), enforce_age=False)
+
+    def _prepare_angle(self, angle: float) -> PreparedTarget:
+        message = can.Message(
+            arbitration_id=self._generate_arbitration_id(CommType.Type18),
+            is_extended_id=True,
+            data=struct.pack("<HHf", 0x7016, 0, angle),
+        )
+        return PreparedTarget(
+            self,
+            message,
+            {
+                "_control_angle": AngleState(angle=angle, timestamp=time.time()),
+            },
+        )
 
     def set_limit_spd(self, limit_spd: float) -> None:
         """CSP velocity limit (RS00 ``0x7017``), rad/s."""
@@ -213,13 +230,11 @@ class A7liteMotor:
         Torque feed-forward is packed into CAN ID bits 23..8; ``p/v/kp/kd``
         occupy the 8-byte data field (big-endian uint16 each).
         """
-        now = time.time()
-        self._control_angle = AngleState(angle=position, timestamp=now)
-        # Keep PP vel_max cache (_control_velocity / 0x7024) separate from MIT v_des.
-        self._mit_velocity = velocity
-        self._mit_kp = kp
-        self._mit_kd = kd
+        submit_targets(
+            (self._prepare_mit(position, velocity, kp, kd, torque),), enforce_age=False
+        )
 
+    def _prepare_mit(self, position, velocity, kp, kd, torque=0.0) -> PreparedTarget:
         p_u = float_to_uint(position, MIT_P_MIN, MIT_P_MAX, 16)
         v_u = float_to_uint(velocity, MIT_V_MIN, MIT_V_MAX, 16)
         kp_u = float_to_uint(kp, MIT_KP_MIN, MIT_KP_MAX, 16)
@@ -235,7 +250,16 @@ class A7liteMotor:
             data=data,
             is_extended_id=True,
         )
-        self._dispatcher.send(msg)
+        return PreparedTarget(
+            self,
+            msg,
+            {
+                "_control_angle": AngleState(angle=position, timestamp=time.time()),
+                "_mit_velocity": velocity,
+                "_mit_kp": kp,
+                "_mit_kd": kd,
+            },
+        )
 
     def set_position_kp(self, kp: float) -> None:
         self._loc_kp = kp
@@ -272,8 +296,12 @@ class A7liteMotor:
         self._write_register(register, struct.pack("<I", value))
 
     def _read_register(self, register: int, timeout_s: float = 1.0) -> bytes:
-        self._send(CommType.Type17, struct.pack("<HH", register, 0) + bytes(4))
-        return self._read_relay.wait(timeout_s)
+        return self._read_relay.request(
+            lambda: self._send(
+                CommType.Type17, struct.pack("<HH", register, 0) + bytes(4)
+            ),
+            timeout_s,
+        )
 
     def _read_register_float(self, register: int, timeout_s: float = 1.0) -> float:
         data = self._read_register(register, timeout_s)

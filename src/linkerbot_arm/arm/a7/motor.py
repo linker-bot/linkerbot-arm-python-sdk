@@ -6,6 +6,10 @@ from enum import Enum, IntEnum
 
 import can
 
+from linkerbot_arm._transport.targets import (
+    PreparedTarget,
+    submit_targets,
+)
 from linkerbot_arm.arm.common import ControlMode
 from linkerbot_arm.arm.common.model import (
     AccelerationState,
@@ -16,6 +20,7 @@ from linkerbot_arm.arm.common.model import (
 )
 from linkerbot_arm.comm import CANMessageDispatcher
 from linkerbot_arm.exceptions import TimeoutError
+from linkerbot_arm.periodic import PeriodicTask, scheduler_for
 from linkerbot_arm.relay import DataRelay
 
 logger = logging.getLogger(__name__)
@@ -148,8 +153,7 @@ class A7Motor:
 
     def _read_register(self, cmd: int, timeout_s: float = 1.0) -> bytes:
         relay = self._get_relay(cmd)
-        self._send(bytes([cmd]))
-        return relay.wait(timeout_s)
+        return relay.request(lambda: self._send(bytes([cmd])), timeout_s)
 
     def _read_register_float(self, cmd: int, timeout_s: float = 1.0) -> float:
         data = self._read_register(cmd, timeout_s)
@@ -179,8 +183,21 @@ class A7Motor:
         self._send(bytes([0xFE]))
 
     def set_angle(self, angle: float) -> None:
-        self._control_angle = AngleState(angle=angle, timestamp=time.time())
-        self._send(bytes([0x0A]) + struct.pack("<f", angle))
+        submit_targets((self._prepare_angle(angle),), enforce_age=False)
+
+    def _prepare_angle(self, angle: float) -> PreparedTarget:
+        message = can.Message(
+            arbitration_id=self._id,
+            is_extended_id=False,
+            data=bytes([0x0A]) + struct.pack("<f", angle),
+        )
+        return PreparedTarget(
+            self,
+            message,
+            {
+                "_control_angle": AngleState(angle=angle, timestamp=time.time()),
+            },
+        )
 
     def set_velocity(self, velocity: float) -> None:
         self._control_velocity = VelocityState(velocity=velocity, timestamp=time.time())
@@ -279,46 +296,54 @@ class A7Motor:
 
     def start_polling(self, intervals: dict[SensorType, float]) -> None:
         self._stop_event.clear()
+        scheduler = scheduler_for(self._dispatcher)
+        tasks = []
         for sensor_type, interval_s in intervals.items():
-            thread = threading.Thread(
-                target=self._poll_sensor,
-                args=(sensor_type, interval_s),
-                daemon=True,
-                name=f"LensMotor.poll_{sensor_type.name.lower()}",
+            cmd = int(sensor_type)
+            relay = self._get_relay(cmd)
+            tasks.append(
+                PeriodicTask(
+                    interval_s,
+                    lambda notify, relay=relay, cmd=cmd: relay.try_request(
+                        lambda: self._send(bytes([cmd])), notify
+                    ),
+                    lambda data, sensor_type=sensor_type: self._consume_poll(
+                        sensor_type, data
+                    ),
+                )
             )
-            self._poll_threads.append(thread)
-            thread.start()
+        scheduler.replace(self, tasks)
 
     def stop_polling(self) -> None:
         self._stop_event.set()
-        for thread in self._poll_threads:
-            thread.join(timeout=2.0)
-        self._poll_threads.clear()
+        scheduler = getattr(self._dispatcher, "_arm_periodic_scheduler", None)
+        if scheduler is not None:
+            scheduler.remove(self)
+
+    def _consume_poll(self, sensor_type: SensorType, data: bytes) -> None:
+        value = struct.unpack("<f", data[:4])[0]
+        now = time.time()
+        match sensor_type:
+            case SensorType.POSITION:
+                self._angle = AngleState(angle=value, timestamp=now)
+            case SensorType.VELOCITY:
+                self._velocity = VelocityState(velocity=value, timestamp=now)
+            case SensorType.TORQUE:
+                self._torque = TorqueState(torque=value, timestamp=now)
+            case SensorType.TEMPERATURE:
+                self._temperature = TemperatureState(temperature=value, timestamp=now)
 
     def _poll_sensor(self, sensor_type: SensorType, interval_s: float) -> None:
-        cmd = int(sensor_type)
-        relay = self._get_relay(cmd)
+        """Legacy private loop; normal polling uses the shared scheduler."""
+        relay = self._get_relay(int(sensor_type))
         while not self._stop_event.is_set():
             try:
-                self._send(bytes([cmd]))
-                data = relay.wait(timeout_s=interval_s)
-                value = struct.unpack("<f", data[:4])[0]
-                now = time.time()
-                match sensor_type:
-                    case SensorType.POSITION:
-                        self._angle = AngleState(angle=value, timestamp=now)
-                    case SensorType.VELOCITY:
-                        self._velocity = VelocityState(velocity=value, timestamp=now)
-                    case SensorType.TORQUE:
-                        self._torque = TorqueState(torque=value, timestamp=now)
-                    case SensorType.TEMPERATURE:
-                        self._temperature = TemperatureState(
-                            temperature=value, timestamp=now
-                        )
-            except TimeoutError:
-                logger.debug(
-                    "Poll timeout for %s on motor %d", sensor_type.name, self._id
+                data = relay.request(
+                    lambda: self._send(bytes([int(sensor_type)])), interval_s
                 )
+                self._consume_poll(sensor_type, data)
+            except TimeoutError:
+                pass
             except Exception:
                 logger.exception(
                     "Poll error for %s on motor %d", sensor_type.name, self._id

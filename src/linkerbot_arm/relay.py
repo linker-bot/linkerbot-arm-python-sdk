@@ -27,6 +27,7 @@ class DataRelay(Generic[T]):
         self._lock = threading.Lock()
         self._request_lock = threading.Lock()
         self._sink: Callable[[T], None] | None = None
+        self._notifications: dict[threading.Event, Callable[[], None]] = {}
 
     def snapshot(self) -> T | None:
         """Return the most recently pushed value, or None."""
@@ -59,6 +60,23 @@ class DataRelay(Generic[T]):
                     self._discard_waiter(waiter)
             return self._wait_for(waiter, timeout_s)
 
+    def try_request(self, send: Callable[[], object], notify: Callable[[], None]):
+        """Register before send, without blocking a periodic scheduler.
+
+        Return None when a synchronous request already owns this relay. The
+        returned request must be consumed or cancelled to release ownership.
+        """
+        if not self._request_lock.acquire(blocking=False):
+            return None
+        waiter = self._register_notified_waiter(notify)
+        try:
+            send()
+        except BaseException:
+            self._discard_waiter(waiter)
+            self._request_lock.release()
+            raise
+        return _PendingRequest(self, waiter)
+
     @staticmethod
     def _validate_timeout(timeout_s: float) -> None:
         if (
@@ -70,12 +88,19 @@ class DataRelay(Generic[T]):
             raise ValidationError("timeout_s must be a finite, non-negative number")
 
     def _register_waiter(self) -> tuple[threading.Event, dict[str, object]]:
+        return self._register_notified_waiter(None)
+
+    def _register_notified_waiter(
+        self, notify
+    ) -> tuple[threading.Event, dict[str, object]]:
         event = threading.Event()
         result_holder: dict[str, object] = {"data": _SENTINEL}
         waiter = (event, result_holder)
 
         with self._lock:
             self._waiters.append(waiter)
+            if notify is not None:
+                self._notifications[event] = notify
         return waiter
 
     def _wait_for(
@@ -97,6 +122,7 @@ class DataRelay(Generic[T]):
         with self._lock:
             if waiter in self._waiters:
                 self._waiters.remove(waiter)
+            self._notifications.pop(waiter[0], None)
 
     def push(self, data: T) -> None:
         """Update cache, wake all waiters, and notify sink."""
@@ -106,6 +132,11 @@ class DataRelay(Generic[T]):
                 result_holder["data"] = data
                 event.set()
             self._waiters.clear()
+            notifications = tuple(self._notifications.values())
+            self._notifications.clear()
+
+        for notify in notifications:
+            notify()
 
         if self._sink is not None:
             self._sink(data)
@@ -113,3 +144,25 @@ class DataRelay(Generic[T]):
     def set_sink(self, sink: Callable[[T], None] | None) -> None:
         """Set the event sink callback."""
         self._sink = sink
+
+
+class _PendingRequest:
+    def __init__(self, relay, waiter):
+        self._relay, self._waiter = relay, waiter
+        self._released = False
+
+    @property
+    def done(self):
+        return self._waiter[0].is_set()
+
+    def cancel(self):
+        if not self._released:
+            self._relay._discard_waiter(self._waiter)
+            self._released = True
+            self._relay._request_lock.release()
+
+    def result(self):
+        try:
+            return self._relay._wait_for(self._waiter, 0)
+        finally:
+            self.cancel()

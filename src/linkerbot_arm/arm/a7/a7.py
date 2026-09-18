@@ -9,6 +9,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from linkerbot_arm._transport import arm_dispatcher, close_managed_dispatcher
+from linkerbot_arm._transport.targets import ArmMotionQueueMixin, submit_targets
 from linkerbot_arm.arm.a7.consts import (
     DEFAULT_POLL_INTERVALS,
     MAX_ACCELERATION,
@@ -43,7 +44,7 @@ def _guard_not_moving(method):
     return wrapper
 
 
-class A7:
+class A7(ArmMotionQueueMixin):
     def __init__(
         self,
         side: Literal["left", "right"],
@@ -167,8 +168,9 @@ class A7:
                     raise ValidationError(
                         f"Joint {i} angle {angle:.4f} rad out of range [{lo:.4f}, {hi:.4f}]"
                     )
-        for motor, angle in zip(self._motors, angles):
-            motor.set_angle(angle)
+        submit_targets(
+            motor._prepare_angle(angle) for motor, angle in zip(self._motors, angles)
+        )
 
     def set_velocities(self, velocities: list[float]) -> None:
         if len(velocities) != len(self._motors):

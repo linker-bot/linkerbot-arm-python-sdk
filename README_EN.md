@@ -1,9 +1,9 @@
 # LinkerBot Arm Python SDK
 
-The default dispatcher backend is retained. An opt-in `CANTransport` backend is
-available through `LINKERBOT_ARM_TRANSPORT=cantransport` after installing the
-fixed transport source in `requirements/cantransport.txt`. Arm calls remain
-unchanged; failed connections require closing and recreating the arm. See the
+All three arm models use `CANTransport` by default. Set
+`LINKERBOT_ARM_TRANSPORT=dispatcher` to explicitly use the low-level backend.
+Both backends require the fixed transport source in `requirements/transport.txt`.
+Arm calls remain unchanged; failed connections require closing and recreating the arm. See the
 [backend guide](docs/TRANSPORT.md) for installation, recovery and validation scope.
 
 Python SDK for **A7, A7lite and P7** robotic arms, with joint control, feedback and
@@ -11,7 +11,7 @@ forward/inverse kinematics. Requires Python 3.10+. Install `linkerbot-arm` and i
 
 ## Installation
 
-Install `linkerbot-transport==1.0.0` using the [installation guide](docs/INSTALLATION.md),
+Install the pinned transport source using the [installation guide](docs/INSTALLATION.md),
 then run from this repository:
 
 ```bash
@@ -31,7 +31,7 @@ from linkerbot_arm import A7
 
 with A7(side="left", interface_name="can0") as arm:
     print(arm.get_angles())  # Seven joint angles in radians
-    print(arm.get_pose())   # TCP pose
+    print(arm.get_pose())  # TCP pose
 ```
 
 Replace `A7` with `A7lite` or `P7` for other models, and use `side="right"` for a right arm.

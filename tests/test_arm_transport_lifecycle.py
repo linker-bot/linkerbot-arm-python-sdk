@@ -1,4 +1,4 @@
-"""Construct real arm classes with real virtual-CAN workers and fake motors."""
+"""Explicit dispatcher compatibility with real virtual CAN and fake motors."""
 
 import importlib
 import sys
@@ -16,6 +16,7 @@ from linkerbot_arm.exceptions import CANError
 
 @pytest.fixture(params=[A7, A7lite, P7])
 def constructed_arm(request, monkeypatch):
+    monkeypatch.setenv("LINKERBOT_ARM_TRANSPORT", "dispatcher")
     cls = request.param
     module = importlib.import_module(cls.__module__)
     events = []

@@ -50,5 +50,7 @@ SDK 是 Python 包，不是 ROS package；无需把它作为独立 ROS package �
 查找仓库根目录或 `src`。旧 `LINKERBOT_SDK_SRC` 在该 fork 中保留过渡支持并输出提示，
 旧完整 SDK 必须经该变量显式提供。优先把所需 SDK 安装到节点实际使用的 Python 环境。
 
-可选高层 CAN 后端使用 [固定源码安装和环境变量](TRANSPORT.md)。在启动节点的环境设置
-`LINKERBOT_ARM_TRANSPORT=cantransport` 即可选择；ROS2 调用保持原样，故障后不会自动恢复运动。
+完成 [固定源码安装](TRANSPORT.md) 后，三种型号默认使用 `CANTransport`，启动节点无需
+额外设置环境变量。需要 dispatcher 时，在启动节点的环境设置
+`LINKERBOT_ARM_TRANSPORT=dispatcher`；取消该变量会恢复默认的 `CANTransport`。
+ROS2 构造和控制调用保持原样；后端选择仅影响新建实例，故障后不会自动恢复运动。

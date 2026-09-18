@@ -9,6 +9,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from linkerbot_arm._transport import arm_dispatcher, close_managed_dispatcher
+from linkerbot_arm._transport.targets import ArmMotionQueueMixin, submit_targets
 from linkerbot_arm.arm.a7_lite.consts import (
     CSP_LIMIT_SPD_MAX,
     CSP_LIMIT_SPD_MIN,
@@ -67,7 +68,7 @@ def _guard_not_moving(method):
     return wrapper
 
 
-class A7lite:
+class A7lite(ArmMotionQueueMixin):
     def __init__(
         self,
         side: Literal["left", "right"],
@@ -286,8 +287,9 @@ class A7lite:
                     raise ValidationError(
                         f"Joint {i} angle {angle:.4f} rad out of range [{lo:.4f}, {hi:.4f}]"
                     )
-        for motor, angle in zip(self._motors, angles):
-            motor.set_angle(angle)
+        submit_targets(
+            motor._prepare_angle(angle) for motor, angle in zip(self._motors, angles)
+        )
 
     def _validate_mit_joint(
         self,
@@ -386,10 +388,12 @@ class A7lite:
         ):
             self._validate_mit_joint(i, p, v, kp, kd, t)
 
-        for motor, p, v, kp, kd, t in zip(
-            self._motors, positions, velocities, kps, kds, torques
-        ):
-            motor.set_mit(p, v, kp, kd, t)
+        submit_targets(
+            motor._prepare_mit(p, v, kp, kd, t)
+            for motor, p, v, kp, kd, t in zip(
+                self._motors, positions, velocities, kps, kds, torques
+            )
+        )
 
     def stream_joint_targets(
         self,
@@ -453,14 +457,14 @@ class A7lite:
             else:
                 _validate_register_angle(i, p)
 
-        for motor, mode, p, v, kp, kd, t in zip(
-            self._motors, modes, positions, velocities, kps, kds, torques
-        ):
-            if mode == ControlMode.MIT:
-                motor.set_mit(p, v, kp, kd, t)
-            else:
-                # PP and CSP both stream loc_ref (0x7016).
-                motor.set_angle(p)
+        submit_targets(
+            motor._prepare_mit(p, v, kp, kd, t)
+            if mode == ControlMode.MIT
+            else motor._prepare_angle(p)
+            for motor, mode, p, v, kp, kd, t in zip(
+                self._motors, modes, positions, velocities, kps, kds, torques
+            )
+        )
 
     def set_csp_angles(
         self,

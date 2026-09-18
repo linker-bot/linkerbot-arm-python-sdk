@@ -8,6 +8,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from linkerbot_arm._transport import arm_dispatcher, close_managed_dispatcher
+from linkerbot_arm._transport.targets import ArmMotionQueueMixin, submit_targets
 from linkerbot_arm.arm.a7.motor import A7Motor, SensorType
 from linkerbot_arm.arm.p7.consts import (
     DEFAULT_POLL_INTERVALS,
@@ -49,7 +50,7 @@ def _guard_not_moving(method):
     return wrapper
 
 
-class P7:
+class P7(ArmMotionQueueMixin):
     """7-DoF arm with two motor variants on a single CAN bus.
 
     Joints 0-4 reuse :class:`linkerbot_arm.arm.a7.motor.A7Motor` (CMD-byte
@@ -192,8 +193,9 @@ class P7:
                     raise ValidationError(
                         f"Joint {i} angle {angle:.4f} rad out of range [{lo:.4f}, {hi:.4f}]"
                     )
-        for motor, angle in zip(self._motors, angles):
-            motor.set_angle(angle)
+        submit_targets(
+            motor._prepare_angle(angle) for motor, angle in zip(self._motors, angles)
+        )
 
     def set_velocities(self, velocities: list[float]) -> None:
         if len(velocities) != len(self._motors):
@@ -312,9 +314,7 @@ class P7:
             send_time = time.perf_counter()
             for step in range(1, n_steps + 1):
                 fraction = step / n_steps
-                wp_angles = (
-                    start_arr + (target_arr - start_arr) * fraction
-                ).tolist()
+                wp_angles = (start_arr + (target_arr - start_arr) * fraction).tolist()
                 send_time += _WAYPOINT_INTERVAL_S
                 time.sleep(max(0.0, send_time - time.perf_counter()))
                 self._set_angles(wp_angles, check_limits=False)

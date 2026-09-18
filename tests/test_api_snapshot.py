@@ -106,4 +106,12 @@ def test_pre_migration_api_snapshot_is_current() -> None:
                 "get_limit_spds",
             }
         else:
-            assert methods == expected["methods"]
+            additions = {
+                "A7Motor": {"_consume_poll", "_prepare_angle"},
+                "A7liteMotor": {"_prepare_angle", "_prepare_mit"},
+                "MotorV2": {"_prepare_angle", "_heartbeat_once"},
+                "DataRelay": {"try_request", "_register_notified_waiter"},
+            }.get(cls.__name__, set())
+            for name, signature in expected["methods"].items():
+                assert methods[name] == signature, name
+            assert methods.keys() - expected["methods"].keys() == additions

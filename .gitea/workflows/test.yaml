@@ -21,7 +21,7 @@ jobs:
         run: |
           curl --fail --silent --show-error --location \
             --header "Authorization: token $TRANSPORT_READ_TOKEN" \
-            "$GITEA_URL/api/v1/repos/zhuzhixiang/linkerbot-transport/archive/e8c8bf7cc424cffa0234e659537c64f102b22426.tar.gz" \
+            "$GITEA_URL/api/v1/repos/zhuzhixiang/linkerbot-transport/archive/83d105fcb60703bab89fdf4e99b02f99225d344c.tar.gz" \
             --output /tmp/linkerbot-transport.tar.gz
           uv pip install /tmp/linkerbot-transport.tar.gz
       - name: Install minimum base dependencies (Python 3.10)

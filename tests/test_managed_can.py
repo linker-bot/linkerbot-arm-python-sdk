@@ -1,4 +1,4 @@
-"""Exercise the optional backend through real transport lifecycle and queues."""
+"""Exercise CANTransport through real transport lifecycle and queues."""
 
 import queue
 import threading
