@@ -1,8 +1,9 @@
 # ROS2 接入
 
-`linkerbot_arm` 可在 ROS2 的 Python 环境中使用。部署前确认 ROS2 适配器使用的命名空间：
-当前 `linker_arm_ros2` 适配器仍导入 `linkerbot`，因此仅安装本 SDK 不能直接替换其旧 SDK。
-现有节点应继续使用与适配器匹配的旧 SDK；自行接入时使用 `from linkerbot_arm import A7, A7lite, P7`。
+`linkerbot_arm` 可在 ROS2 的 Python 环境中使用。
+个人 [linker_arm_ros2 fork](https://gitea.linkerhub.work/zhuzhixiang/linker_arm_ros2)
+已首选 `linkerbot_arm`，保留原有 PP `_set_angles()` 调用链。部署其他分支时需核对实际
+adapter/loader；仍导入 `linkerbot` 的旧适配器需先迁移，不能仅替换 SDK 安装。
 
 ## Python 与运动学依赖
 
@@ -45,5 +46,9 @@ SDK 是 Python 包，不是 ROS package；无需把它作为独立 ROS package �
 - `get_angles()`、`get_velocities()`、`get_torques()` 获取反馈。
 - `close()` 关闭连接；SDK 本身也支持上下文管理器。
 
-旧 loader 的 `LINKERBOT_SDK_SRC` 查找的是 `linkerbot/arm` 目录，不能用它指向当前
-`linkerbot_arm` 源码并期待自动转换导入。优先把所需 SDK 安装到节点实际使用的 Python 环境。
+个人 fork 的 loader 优先使用已安装的 `linkerbot_arm`，否则通过 `LINKERBOT_ARM_SRC`
+查找仓库根目录或 `src`。旧 `LINKERBOT_SDK_SRC` 在该 fork 中保留过渡支持并输出提示，
+旧完整 SDK 必须经该变量显式提供。优先把所需 SDK 安装到节点实际使用的 Python 环境。
+
+可选高层 CAN 后端使用 [固定源码安装和环境变量](TRANSPORT.md)。在启动节点的环境设置
+`LINKERBOT_ARM_TRANSPORT=cantransport` 即可选择；ROS2 调用保持原样，故障后不会自动恢复运动。

@@ -8,6 +8,7 @@ from typing import Literal
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
+from linkerbot_arm._transport import arm_dispatcher, close_managed_dispatcher
 from linkerbot_arm.arm.a7_lite.consts import (
     CSP_LIMIT_SPD_MAX,
     CSP_LIMIT_SPD_MIN,
@@ -81,27 +82,27 @@ class A7lite:
             raise ValueError(
                 f"world_frame must be 'urdf' or 'maestro', got {world_frame!r}"
             )
-        self._can_dispatcher = CANMessageDispatcher(
-            interface_name, interface_type, on_bus_error=self._on_bus_error
-        )
-        self._motors = [
-            A7liteMotor(id, self._can_dispatcher)
-            for id in (range(61, 68) if side == "left" else range(51, 58))
-        ]
-        from linkerbot_arm.arm.kinetix import ArmKinetix
+        with arm_dispatcher(
+            self, "a7_lite", side, interface_name, interface_type, CANMessageDispatcher
+        ) as self._can_dispatcher:
+            self._motors = [
+                A7liteMotor(id, self._can_dispatcher)
+                for id in (range(61, 68) if side == "left" else range(51, 58))
+            ]
+            from linkerbot_arm.arm.kinetix import ArmKinetix
 
-        self._kx: ArmKinetix = ArmKinetix.from_builtin(
-            "a7_lite", side, tcp_offset=tcp_offset, world_frame=world_frame
-        )
-        # Per-joint run_mode; None means "not set yet" (enable defaults to all PP).
-        self._control_modes: list[ControlMode] | None = None
-        self._motion_timer = MotionTimer()
-        self._closed: bool = False
-        self._check_motors()
-        for motor in self._motors:
-            motor.start_reporting()
-            motor.read_initial_state()
-        self._wait_reporting_data()
+            self._kx: ArmKinetix = ArmKinetix.from_builtin(
+                "a7_lite", side, tcp_offset=tcp_offset, world_frame=world_frame
+            )
+            # Per-joint run_mode; None means "not set yet" (enable defaults to all PP).
+            self._control_modes: list[ControlMode] | None = None
+            self._motion_timer = MotionTimer()
+            self._closed: bool = False
+            self._check_motors()
+            for motor in self._motors:
+                motor.start_reporting()
+                motor.read_initial_state()
+            self._wait_reporting_data()
 
     @property
     def control_modes(self) -> list[ControlMode] | None:
@@ -919,6 +920,7 @@ class A7lite:
 
     def close(self) -> None:
         if self._closed:
+            close_managed_dispatcher(self._can_dispatcher)
             return
 
         self.wait_motion_done()

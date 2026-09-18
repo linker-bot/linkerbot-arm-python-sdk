@@ -7,6 +7,7 @@ from typing import Literal
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
+from linkerbot_arm._transport import arm_dispatcher, close_managed_dispatcher
 from linkerbot_arm.arm.a7.motor import A7Motor, SensorType
 from linkerbot_arm.arm.p7.consts import (
     DEFAULT_POLL_INTERVALS,
@@ -79,34 +80,34 @@ class P7:
             raise ValueError(
                 f"world_frame must be 'urdf' or 'maestro', got {world_frame!r}"
             )
-        self._can_dispatcher = CANMessageDispatcher(
-            interface_name, interface_type, on_bus_error=self._on_bus_error
-        )
-        # Per-side single bus. IDs 51-57 (right) / 61-67 (left). Joints 0-4
-        # use the V1 motor protocol (A7Motor); joints 5-6 use the V2 motor
-        # protocol (MotorV2). The list order matches the URDF joint order
-        # R1..R7 / L1..L7.
-        motor_ids = list(range(61, 68) if side == "left" else range(51, 58))
-        self._motors: list[A7Motor | MotorV2] = [
-            *(A7Motor(mid, self._can_dispatcher) for mid in motor_ids[:5]),
-            *(MotorV2(mid, self._can_dispatcher) for mid in motor_ids[5:]),
-        ]
-        from linkerbot_arm.arm.kinetix import ArmKinetix
+        with arm_dispatcher(
+            self, "p7", side, interface_name, interface_type, CANMessageDispatcher
+        ) as self._can_dispatcher:
+            # Per-side single bus. IDs 51-57 (right) / 61-67 (left). Joints 0-4
+            # use the V1 motor protocol (A7Motor); joints 5-6 use the V2 motor
+            # protocol (MotorV2). The list order matches the URDF joint order
+            # R1..R7 / L1..L7.
+            motor_ids = list(range(61, 68) if side == "left" else range(51, 58))
+            self._motors: list[A7Motor | MotorV2] = [
+                *(A7Motor(mid, self._can_dispatcher) for mid in motor_ids[:5]),
+                *(MotorV2(mid, self._can_dispatcher) for mid in motor_ids[5:]),
+            ]
+            from linkerbot_arm.arm.kinetix import ArmKinetix
 
-        self._kx: ArmKinetix = ArmKinetix.from_builtin(
-            "p7", side, tcp_offset=tcp_offset, world_frame=world_frame
-        )
-        self._control_mode: ControlMode | None = None
-        self._motion_timer = MotionTimer()
-        self._closed: bool = False
-        self._polling: bool = False
-        self._check_motors()
-        for motor in self._motors:
-            motor.read_initial_state()
-        for motor in self._motors:
-            if not motor.has_initial_data():
-                raise StateError(f"Motor {motor._id} did not report initial data.")
-        self.start_polling()
+            self._kx: ArmKinetix = ArmKinetix.from_builtin(
+                "p7", side, tcp_offset=tcp_offset, world_frame=world_frame
+            )
+            self._control_mode: ControlMode | None = None
+            self._motion_timer = MotionTimer()
+            self._closed: bool = False
+            self._polling: bool = False
+            self._check_motors()
+            for motor in self._motors:
+                motor.read_initial_state()
+            for motor in self._motors:
+                if not motor.has_initial_data():
+                    raise StateError(f"Motor {motor._id} did not report initial data.")
+            self.start_polling()
 
     def _check_motors(self) -> None:
         unresponsive = []
@@ -494,6 +495,7 @@ class P7:
 
     def close(self) -> None:
         if self._closed:
+            close_managed_dispatcher(self._can_dispatcher)
             return
 
         self.stop_polling()

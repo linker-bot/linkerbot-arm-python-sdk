@@ -4,4 +4,5 @@ recursive-include docs *.md *.toml *.png
 recursive-include tests *.py *.json
 recursive-include tools *.py
 recursive-include constraints *.txt
+recursive-include requirements *.txt
 prune .local-notes

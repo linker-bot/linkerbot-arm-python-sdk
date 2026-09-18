@@ -44,6 +44,7 @@ from linkerbot_arm.arm import State, WayPoint
 - [A7lite API](docs/zh/src/reference/a7lite/README.md)
 - [P7 API](docs/zh/src/reference/p7/README.md)
 - [CAN 接口](docs/zh/src/reference/can.md)
+- [可选 CANTransport 后端与故障恢复](docs/TRANSPORT.md)
 - [ROS2 接入](docs/ROS2.md)
 - [从旧 SDK 迁移](docs/MIGRATION.md)
 - [版本变更](CHANGELOG.md)

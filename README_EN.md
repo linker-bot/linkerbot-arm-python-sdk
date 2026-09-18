@@ -1,5 +1,11 @@
 # LinkerBot Arm Python SDK
 
+The default dispatcher backend is retained. An opt-in `CANTransport` backend is
+available through `LINKERBOT_ARM_TRANSPORT=cantransport` after installing the
+fixed transport source in `requirements/cantransport.txt`. Arm calls remain
+unchanged; failed connections require closing and recreating the arm. See the
+[backend guide](docs/TRANSPORT.md) for installation, recovery and validation scope.
+
 Python SDK for **A7, A7lite and P7** robotic arms, with joint control, feedback and
 forward/inverse kinematics. Requires Python 3.10+. Install `linkerbot-arm` and import `linkerbot_arm`.
 

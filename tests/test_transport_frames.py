@@ -13,6 +13,8 @@ from collections import deque
 import can
 import pytest
 
+from linkerbot_arm import A7lite, ControlMode
+from linkerbot_arm._transport.can import ManagedCANDispatcher
 from linkerbot_arm.arm.a7.motor import A7Motor
 from linkerbot_arm.arm.a7_lite.motor import A7liteMotor
 from linkerbot_arm.arm.p7.motor_v2 import MotorV2
@@ -36,7 +38,7 @@ class FakeDispatcher:
             callback(message)
 
 
-@pytest.fixture(params=["fake", "real"])
+@pytest.fixture(params=["fake", "real", "managed"])
 def link(request):
     if request.param == "fake":
         dispatcher = FakeDispatcher()
@@ -47,7 +49,14 @@ def link(request):
     if backend == "socketcan":
         assert channel.startswith("vcan"), "use an isolated vcan interface"
     with can.Bus(interface=backend, channel=channel) as peer:
-        with CANMessageDispatcher(channel, backend) as dispatcher:
+        if request.param == "managed":
+            model = {A7Motor: "a7", A7liteMotor: "a7_lite", MotorV2: "p7"}[
+                request.node.callspec.params["cls"]
+            ]
+            selected = ManagedCANDispatcher(channel, backend, model, "left")
+        else:
+            selected = CANMessageDispatcher(channel, backend)
+        with selected as dispatcher:
             assert dispatcher.can_interface == CanInterface(channel, backend)
             received = threading.Event()
 
@@ -65,7 +74,10 @@ def link(request):
 
             yield dispatcher, lambda: peer.recv(1), feedback
         assert not dispatcher._recv_thread.is_alive()
-        assert not dispatcher._send_thread.is_alive()
+        if request.param == "managed":
+            assert not dispatcher._tx.get_health().running
+        else:
+            assert not dispatcher._send_thread.is_alive()
 
 
 @pytest.mark.parametrize(
@@ -141,6 +153,34 @@ def test_motor_register_timeout_is_still_arm_timeout(link, cls):
     read = motor._read_flash_param if cls is MotorV2 else motor._read_register
     with pytest.raises(TimeoutError):
         read(1, timeout_s=0)
+
+
+@pytest.mark.parametrize("cls", [A7liteMotor])
+def test_mit_csp_and_mode_changes_keep_wire_bytes_and_order(link, cls):
+    dispatcher, receive, _ = link
+    arm = A7lite.__new__(A7lite)
+    arm._motors = [cls(mid, dispatcher) for mid in range(61, 68)]
+    arm._control_modes = None
+    arm.set_control_modes([ControlMode.MIT, ControlMode.CSP] + [ControlMode.PP] * 5)
+    frames = [receive() for _ in range(14)]
+    assert [frame.arbitration_id for frame in frames[:7]] == [
+        0x0400FD00 | mid for mid in range(61, 68)
+    ]
+    assert [bytes(frame.data) for frame in frames[:7]] == [bytes(8)] * 7
+    assert [frame.arbitration_id for frame in frames[7:]] == [
+        0x1200FD00 | mid for mid in range(61, 68)
+    ]
+    assert [struct.unpack("<HHI", bytes(frame.data)) for frame in frames[7:]] == [
+        (0x7005, 0, value) for value in [0, 5, 1, 1, 1, 1, 1]
+    ]
+    arm._motors[0].set_mit(0.0, 0.0, 20.0, 1.0, 0.0)
+    frame = receive()
+    assert frame.arbitration_id == 0x017FFF3D
+    assert bytes(frame.data) == bytes.fromhex("7fff7fff0a3d3333")
+    arm._motors[1].set_limit_spd(0.5)
+    frame = receive()
+    assert frame.arbitration_id == 0x1200FD3E
+    assert bytes(frame.data) == bytes.fromhex("177000000000003f")
 
 
 def test_subscribe_unsubscribe_and_stop_inside_callback():

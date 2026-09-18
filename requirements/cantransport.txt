@@ -1,0 +1,3 @@
+# Optional CANTransport backend: protocol routing source prerequisite.
+# Install this fixed source before enabling LINKERBOT_ARM_TRANSPORT=cantransport.
+linkerbot-transport[can] @ git+ssh://git@git.linkerhub.work:12222/zhuzhixiang/linkerbot-transport.git@d636d1936cd7c0543c213f20df9e15ea81f97939
