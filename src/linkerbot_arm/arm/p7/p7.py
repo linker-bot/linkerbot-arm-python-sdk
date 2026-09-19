@@ -28,6 +28,7 @@ from linkerbot_arm.arm.p7.consts import (
 )
 from linkerbot_arm.arm.p7.motor_v2 import MotorV2
 from linkerbot_arm.arm.common import ControlMode, Pose, State
+from linkerbot_arm.arm.common._diagnostics import describe_motor
 from linkerbot_arm.comm import CanInterface, CANMessageDispatcher
 from linkerbot_arm.exceptions import StateError, ValidationError
 from linkerbot_arm.motion_timer import MotionTimer
@@ -107,19 +108,21 @@ class P7(ArmMotionQueueMixin):
                 motor.read_initial_state()
             for motor in self._motors:
                 if not motor.has_initial_data():
-                    raise StateError(f"Motor {motor._id} did not report initial data.")
+                    raise StateError(
+                        f"{describe_motor(motor._id)} did not report initial data."
+                    )
             self.start_polling()
 
     def _check_motors(self) -> None:
         unresponsive = []
         for motor in self._motors:
             if not motor.check_alive():
-                unresponsive.append(motor._id)
+                unresponsive.append(describe_motor(motor._id))
         if unresponsive:
             raise StateError(
-                f"Motors {unresponsive} did not respond. "
-                f"Expected {NUM_JOINTS} motors, {NUM_JOINTS - len(unresponsive)} responded. "
-                f"Check wiring and power."
+                f"{', '.join(unresponsive)} did not respond during startup discovery. "
+                f"Expected {NUM_JOINTS} joints, {NUM_JOINTS - len(unresponsive)} responded. "
+                f"Check CAN communication, wiring, and power."
             )
 
     def _on_bus_error(self, error: Exception) -> None:

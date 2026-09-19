@@ -2,6 +2,8 @@
 
 ## 0.6.1 — Unreleased
 
+- Identify the arm side, one-based joint number and CAN ID in startup discovery
+  and missing-feedback errors for A7, A7lite and P7.
 - Default A7, A7lite and P7 to CANTransport. Keep explicit
   `LINKERBOT_ARM_TRANSPORT=dispatcher` selection and existing constructors,
   control calls and direct `CANMessageDispatcher` imports. Unsetting the variable

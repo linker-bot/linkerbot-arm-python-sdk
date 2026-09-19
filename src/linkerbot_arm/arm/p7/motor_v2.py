@@ -28,6 +28,7 @@ from linkerbot_arm._transport.targets import (
 )
 from linkerbot_arm.arm.a7.motor import SensorType  # re-exported for parity with A7Motor
 from linkerbot_arm.arm.common import ControlMode
+from linkerbot_arm.arm.common._diagnostics import describe_motor
 from linkerbot_arm.arm.common.model import (
     AccelerationState,
     AngleState,
@@ -460,7 +461,7 @@ class MotorV2:
             time.sleep(0.005)
         else:
             raise TimeoutError(
-                f"Motor {self._id} did not return feedback within {timeout_s}s"
+                f"{describe_motor(self._id)} did not return feedback within {timeout_s}s"
             )
 
         # Initialise the cached control state from the current angle so the

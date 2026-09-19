@@ -39,6 +39,7 @@ from linkerbot_arm.arm.a7_lite.consts import (
     MOVE_L_MAX_MAX_VELOCITY,
 )
 from linkerbot_arm.arm.common import ControlMode, Pose, State
+from linkerbot_arm.arm.common._diagnostics import describe_motor
 from linkerbot_arm.comm import CanInterface, CANMessageDispatcher
 from linkerbot_arm.exceptions import StateError, ValidationError
 from linkerbot_arm.motion_timer import MotionTimer
@@ -138,9 +139,11 @@ class A7lite(ArmMotionQueueMixin):
                 return
             time.sleep(0.01)
 
-        missing = [m._id for m in self._motors if not m.has_reporting_data()]
+        missing = [
+            describe_motor(m._id) for m in self._motors if not m.has_reporting_data()
+        ]
         raise StateError(
-            f"Motors {missing} did not report data within {timeout_s}s. "
+            f"{', '.join(missing)} did not report data within {timeout_s}s. "
             f"Check that reporting is enabled and CAN bus is healthy."
         )
 
@@ -148,18 +151,18 @@ class A7lite(ArmMotionQueueMixin):
         """Verify all 7 motors respond on the CAN bus.
 
         Always checks ALL motors regardless of individual failures,
-        then raises StateError listing every unresponsive motor ID.
+        then raises StateError listing each joint with its side and CAN ID.
         """
         unresponsive = []
         for motor in self._motors:
             if not motor.check_alive():
-                unresponsive.append(motor._id)
+                unresponsive.append(describe_motor(motor._id))
 
         if unresponsive:
             raise StateError(
-                f"Motors {unresponsive} did not respond. "
-                f"Expected 7 motors, {7 - len(unresponsive)} responded. "
-                f"Check wiring and power."
+                f"{', '.join(unresponsive)} did not respond during startup discovery. "
+                f"Expected 7 joints, {7 - len(unresponsive)} responded. "
+                f"Check CAN communication, wiring, and power."
             )
 
     def _on_bus_error(self, error: Exception) -> None:

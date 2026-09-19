@@ -59,6 +59,31 @@ with A7("left", "PCAN_USBBUS1", interface_type="pcan") as arm:
 
 其他后端的名称和驱动要求见 [python-can 文档](https://python-can.readthedocs.io/en/stable/interfaces.html)。
 
+## 启动报错与关节编号
+
+A7、A7lite、P7 的两臂均按 CAN ID 从小到大对应关节 1–7：
+
+| 关节编号 | 右臂 CAN ID | 左臂 CAN ID |
+| --- | --- | --- |
+| 1 | 51 | 61 |
+| 2 | 52 | 62 |
+| 3 | 53 | 63 |
+| 4 | 54 | 64 |
+| 5 | 55 | 65 |
+| 6 | 56 | 66 |
+| 7 | 57 | 67 |
+
+启动探测失败时，异常信息同时显示左右臂、关节编号与 CAN ID。例如：
+
+```text
+Right arm joint 3 (CAN ID 53) did not respond during startup discovery. Expected 7 joints, 6 responded. Check CAN communication, wiring, and power.
+```
+
+这表示**右臂关节 3 未在探测等待时间内响应**；53 是节点的 CAN ID，不是错误码。
+多个关节未响应时会逐一列出。检查所选通道、通信状态、接线和供电；
+单次探测超时本身不能判定电机损坏。
+启动时的主动上报缺失和初始反馈缺失提示也使用相同的关节命名。
+
 ## 底层 dispatcher
 
 需要直接使用通信接口时：
