@@ -43,7 +43,7 @@ def constructed_arm(request, monkeypatch):
                 self.kind = kind
                 events.append(("motor", id, kind))
 
-            def check_alive(self):
+            def check_alive(self, timeout_s=0.02):
                 events.append(("check", self._id))
                 return True
 

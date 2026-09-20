@@ -28,6 +28,7 @@ from linkerbot_arm.arm.a7.consts import (
 )
 from linkerbot_arm.arm.common import ControlMode, Pose, State
 from linkerbot_arm.arm.common._diagnostics import describe_motor
+from linkerbot_arm.arm.common._discovery import check_motors
 from linkerbot_arm.comm import CanInterface, CANMessageDispatcher
 from linkerbot_arm.exceptions import StateError, ValidationError
 from linkerbot_arm.motion_timer import CancellableHomeMixin, MotionTimer
@@ -87,16 +88,7 @@ class A7(ArmMotionQueueMixin, CancellableHomeMixin):
             self.start_polling()
 
     def _check_motors(self) -> None:
-        unresponsive = []
-        for motor in self._motors:
-            if not motor.check_alive():
-                unresponsive.append(describe_motor(motor._id))
-        if unresponsive:
-            raise StateError(
-                f"{', '.join(unresponsive)} did not respond during startup discovery. "
-                f"Expected {NUM_JOINTS} joints, {NUM_JOINTS - len(unresponsive)} responded. "
-                f"Check CAN communication, wiring, and power."
-            )
+        check_motors(self._motors)
 
     def _on_bus_error(self, error: Exception) -> None:
         self._bus_error = error

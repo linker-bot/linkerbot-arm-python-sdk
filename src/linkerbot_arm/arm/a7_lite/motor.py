@@ -1,4 +1,5 @@
 import struct
+import threading
 import time
 from enum import Enum
 
@@ -85,7 +86,8 @@ class A7liteMotor:
         self._mit_velocity: float | None = None
         self._mit_kp: float | None = None
         self._mit_kd: float | None = None
-        self._read_relay: DataRelay[bytes] = DataRelay()
+        self._read_relays: dict[int, DataRelay[bytes]] = {}
+        self._read_relays_lock = threading.Lock()
 
         self._dispatcher.subscribe(self._on_message)
 
@@ -296,7 +298,13 @@ class A7liteMotor:
         self._write_register(register, struct.pack("<I", value))
 
     def _read_register(self, register: int, timeout_s: float = 1.0) -> bytes:
-        return self._read_relay.request(
+        # One relay per address prevents a late reply to another register from
+        # completing this read. Same-address reads retain DataRelay serialization.
+        with self._read_relays_lock:
+            relay = self._read_relays.get(register)
+            if relay is None:
+                relay = self._read_relays[register] = DataRelay()
+        return relay.request(
             lambda: self._send(
                 CommType.Type17, struct.pack("<HH", register, 0) + bytes(4)
             ),
@@ -336,6 +344,15 @@ class A7liteMotor:
         self._limit_spd = self._read_register_float(0x7017, timeout_s)
 
     def _on_message(self, msg: can.Message) -> None:
+        if (
+            not msg.is_extended_id
+            or msg.is_remote_frame
+            or msg.is_error_frame
+            or msg.is_fd
+            or msg.dlc != 8
+            or len(msg.data) != 8
+        ):
+            return
         arb_id = msg.arbitration_id
         comm_type = (arb_id >> 24) & 0x1F
 
@@ -345,8 +362,12 @@ class A7liteMotor:
 
         if comm_type == CommType.Type17:
             status = (arb_id >> 16) & 0xFF
-            if status == 0x00:
-                self._read_relay.push(bytes(msg.data[4:8]))
+            if status == 0x00 and (arb_id & 0xFF) == _MASTER_ID:
+                register = struct.unpack_from("<H", msg.data)[0]
+                with self._read_relays_lock:
+                    relay = self._read_relays.get(register)
+                if relay is not None:
+                    relay.push(bytes(msg.data[4:8]))
             return
 
         if comm_type not in (CommType.Type2, CommType.Type24):

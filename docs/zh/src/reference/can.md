@@ -76,13 +76,28 @@ A7、A7lite、P7 的两臂均按 CAN ID 从小到大对应关节 1–7：
 启动探测失败时，异常信息同时显示左右臂、关节编号与 CAN ID。例如：
 
 ```text
-Right arm joint 3 (CAN ID 53) did not respond during startup discovery. Expected 7 joints, 6 responded. Check CAN communication, wiring, and power.
+Right arm joint 3 (CAN ID 53) did not respond during startup discovery. Expected 7 joints, 6 responded. Attempts by CAN ID: 53=2; per-attempt budgets 100/200 ms, total budget 2.5s, elapsed 0.304s. Check CAN communication, wiring, and power.
 ```
 
 这表示**右臂关节 3 未在探测等待时间内响应**；53 是节点的 CAN ID，不是错误码。
 多个关节未响应时会逐一列出。检查所选通道、通信状态、接线和供电；
 单次探测超时本身不能判定电机损坏。
 启动时的主动上报缺失和初始反馈缺失提示也使用相同的关节命名。
+
+A7、A7lite 和 P7 使用相同的只读启动探测策略：首轮每关节最多等待 100 ms，
+仅对未响应关节再试一次、最多等待 200 ms。总探测预算为 2.5 秒，剩余预算会截短单次等待；
+到期后不再提交探测。正常立即回复不额外等待，已响应关节不重复查询。
+该预算只覆盖通信探测，不包括模型加载、初始参数读取和主动上报等待，也不能强制中断
+卡住的底层调用或消除操作系统调度延迟。发送/总线异常直接抛出，不作为无响应重试。
+探测不会自动使能、回零或设置零点。电机 `check_alive(timeout_s=...)` 的原默认值不变。
+
+需要诊断时，将 `linkerbot_arm.arm.common._discovery` 日志设为 DEBUG，可查看每关节的
+尝试次数、等待预算、调用耗时和响应结果。调用耗时包含提交与等待，不是独立的 CAN 线上耗时；
+上述预算尚未经过客户 Windows PCAN 现场延迟标定。
+
+A7lite 的寄存器读回复按寄存器地址匹配，P7 V2 的 Flash 读回复按索引匹配；
+错误地址、错误帧类型或不完整回复不能完成当前读取。
+协议没有事务序号，**同一地址的旧回复仍可能完成重试**，不能将地址匹配视为采样新鲜度保证。
 
 ## 底层 dispatcher
 

@@ -136,6 +136,9 @@ def test_motor_control_frames_and_feedback(
         assert motor.velocity.velocity == 10.0
         assert motor.fault_code == 7
         assert motor.temperature.temperature == 30.0
+        # Register an addressed reader before injecting a Flash response.
+        with pytest.raises(TimeoutError):
+            motor._read_flash_param(0x0B, timeout_s=0)
         feedback(
             can.Message(
                 arbitration_id=0x642,
@@ -143,7 +146,7 @@ def test_motor_control_frames_and_feedback(
                 is_extended_id=False,
             )
         )
-        assert motor._flash_relay.snapshot() == b"\x01\x02\x03\x04"
+        assert motor._flash_relays[0x0B].snapshot() == b"\x01\x02\x03\x04"
 
 
 @pytest.mark.parametrize("cls", [A7Motor, A7liteMotor, MotorV2])

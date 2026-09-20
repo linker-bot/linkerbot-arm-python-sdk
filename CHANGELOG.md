@@ -2,6 +2,12 @@
 
 ## 0.6.1 — Unreleased
 
+- Match A7lite register replies and P7 V2 Flash replies by address/index; reject
+  malformed frames before completing a read. Same-address reads remain serialized;
+  the wire protocol cannot distinguish a late reply to the same address.
+- Share bounded read-only startup probing across all three models: 100 ms first
+  attempt, 200 ms retry for missing joints only, 2.5 s total discovery budget.
+  Keep public motor timeout defaults and include joint IDs/attempts in failures.
 - Clean up failed arm initialization on both CAN backends. Keep failed physical
   shutdown retryable; `close()` now reports cleanup failures instead of silently
   succeeding. Successful calls still return None and repeated close is safe.

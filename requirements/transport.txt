@@ -1,3 +1,3 @@
 # Source prerequisite for both arm CAN backends; no release is implied.
 # Includes atomic targets, protocol routing and interrupted-startup cleanup.
-linkerbot-transport[can] @ git+ssh://git@git.linkerhub.work:12222/zhuzhixiang/linkerbot-transport.git@2f5ce053bf92897a7fc22f4349f5020bd0ae1955
+linkerbot-transport[can] @ git+ssh://git@git.linkerhub.work:12222/zhuzhixiang/linkerbot-transport.git@7ebe2a5c7380a1d3712444149f7f253c4ebc2836

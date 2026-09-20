@@ -162,7 +162,8 @@ class MotorV2:
         self._velocity_ki: float = _DEFAULT_KI_VEL
 
         # Flash protocol responses (ID = 0x600 + motor_id)
-        self._flash_relay: DataRelay[bytes] = DataRelay()
+        self._flash_relays: dict[int, DataRelay[bytes]] = {}
+        self._flash_relays_lock = threading.Lock()
 
         # Heartbeat thread
         self._heartbeat_thread: threading.Thread | None = None
@@ -271,6 +272,15 @@ class MotorV2:
         )
 
     def _on_message(self, msg: can.Message) -> None:
+        if (
+            msg.is_extended_id
+            or msg.is_remote_frame
+            or msg.is_error_frame
+            or msg.is_fd
+            or msg.dlc != 8
+            or len(msg.data) != 8
+        ):
+            return
         if msg.arbitration_id == self._id:
             self._on_feedback_frame(bytes(msg.data))
         elif msg.arbitration_id == _FLASH_REQUEST_ID_BASE + self._id:
@@ -318,11 +328,14 @@ class MotorV2:
 
     def _on_flash_response(self, data: bytes) -> None:
         # Response layout: <motor_id> <index> <D0> <D1> <D2> <D3> 0x00 0xFF
-        if len(data) < 8:
+        if len(data) != 8 or data[6:] != b"\x00\xff":
             return
         if data[0] != (self._id & 0xFF):
             return
-        self._flash_relay.push(bytes(data[2:6]))
+        with self._flash_relays_lock:
+            relay = self._flash_relays.get(data[1])
+        if relay is not None:
+            relay.push(bytes(data[2:6]))
 
     # ------------------------------------------------------------------ #
     # State machine
@@ -547,7 +560,13 @@ class MotorV2:
                 _FLASH_FRAME_FOOTER,
             ]
         )
-        return self._flash_relay.request(lambda: self._send_flash(request), timeout_s)
+        # Match the index as encoded on the wire; unsolicited indices never
+        # allocate relays. The protocol has no transaction sequence number.
+        with self._flash_relays_lock:
+            relay = self._flash_relays.get(index & 0xFF)
+            if relay is None:
+                relay = self._flash_relays[index & 0xFF] = DataRelay()
+        return relay.request(lambda: self._send_flash(request), timeout_s)
 
     def _write_flash_param(self, index: int, data: bytes) -> None:
         if len(data) != 4:

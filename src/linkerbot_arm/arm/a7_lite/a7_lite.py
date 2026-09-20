@@ -40,6 +40,7 @@ from linkerbot_arm.arm.a7_lite.consts import (
 )
 from linkerbot_arm.arm.common import ControlMode, Pose, State
 from linkerbot_arm.arm.common._diagnostics import describe_motor
+from linkerbot_arm.arm.common._discovery import check_motors
 from linkerbot_arm.comm import CanInterface, CANMessageDispatcher
 from linkerbot_arm.exceptions import StateError, ValidationError
 from linkerbot_arm.motion_timer import CancellableHomeMixin, MotionTimer
@@ -148,22 +149,7 @@ class A7lite(ArmMotionQueueMixin, CancellableHomeMixin):
         )
 
     def _check_motors(self) -> None:
-        """Verify all 7 motors respond on the CAN bus.
-
-        Always checks ALL motors regardless of individual failures,
-        then raises StateError listing each joint with its side and CAN ID.
-        """
-        unresponsive = []
-        for motor in self._motors:
-            if not motor.check_alive():
-                unresponsive.append(describe_motor(motor._id))
-
-        if unresponsive:
-            raise StateError(
-                f"{', '.join(unresponsive)} did not respond during startup discovery. "
-                f"Expected 7 joints, {7 - len(unresponsive)} responded. "
-                f"Check CAN communication, wiring, and power."
-            )
+        check_motors(self._motors)
 
     def _on_bus_error(self, error: Exception) -> None:
         self._bus_error = error
