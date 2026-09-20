@@ -8,7 +8,7 @@ from typing import Literal
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-from linkerbot_arm._transport import arm_dispatcher, close_managed_dispatcher
+from linkerbot_arm._transport import arm_dispatcher, close_arm, exit_arm
 from linkerbot_arm._transport.targets import ArmMotionQueueMixin, submit_targets
 from linkerbot_arm.arm.a7_lite.consts import (
     CSP_LIMIT_SPD_MAX,
@@ -42,7 +42,7 @@ from linkerbot_arm.arm.common import ControlMode, Pose, State
 from linkerbot_arm.arm.common._diagnostics import describe_motor
 from linkerbot_arm.comm import CanInterface, CANMessageDispatcher
 from linkerbot_arm.exceptions import StateError, ValidationError
-from linkerbot_arm.motion_timer import MotionTimer
+from linkerbot_arm.motion_timer import CancellableHomeMixin, MotionTimer
 
 from .motor import A7liteMotor
 
@@ -69,7 +69,7 @@ def _guard_not_moving(method):
     return wrapper
 
 
-class A7lite(ArmMotionQueueMixin):
+class A7lite(ArmMotionQueueMixin, CancellableHomeMixin):
     def __init__(
         self,
         side: Literal["left", "right"],
@@ -220,6 +220,7 @@ class A7lite(ArmMotionQueueMixin):
         time.sleep(0.1)  # wait 0.1s for motor to report
 
     def disable(self) -> None:
+        self._motion_timer.cancel()
         for motor in self._motors:
             motor.disable()
 
@@ -239,6 +240,7 @@ class A7lite(ArmMotionQueueMixin):
         Mixed modes (e.g. first-three MIT + last-four PP) stop each joint
         with the register / frame that actually affects that mode.
         """
+        self._motion_timer.cancel()
         modes = self._modes_or_pp()
         saved_pp: list[tuple[int, float]] = []
         saved_csp: list[tuple[int, float]] = []
@@ -602,14 +604,14 @@ class A7lite(ArmMotionQueueMixin):
             target_joints: Target angles (rad) for all 7 joints.
             blocking: If True, block until motion completes.
         """
-        self._set_angles(target_joints)
-        self._motion_timer.start(
-            self._move_duration(
+        self._motion_timer._start_with_target(
+            lambda: self._move_duration(
                 self.get_angles(),
                 target_joints,
                 self.get_control_velocities(),
                 self.get_control_acceleration(),
-            )
+            ),
+            lambda: self._set_angles(target_joints),
         )
         if blocking:
             self.wait_motion_done()
@@ -926,16 +928,8 @@ class A7lite(ArmMotionQueueMixin):
             motor.set_velocity_filt_gain(gain)
 
     def close(self) -> None:
-        if self._closed:
-            close_managed_dispatcher(self._can_dispatcher)
-            return
-
-        self.wait_motion_done()
-        try:
-            self._can_dispatcher.stop()
-        except Exception:
-            pass
-        self._closed = True
+        """Release CAN resources; failures are raised and close may be retried."""
+        close_arm(self)
 
     def set_joint_limits(self, limits: list[tuple[float, float]]) -> None:
         self._kx.set_joint_limits(limits)
@@ -947,5 +941,4 @@ class A7lite(ArmMotionQueueMixin):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-        return False
+        return exit_arm(self, exc_val)

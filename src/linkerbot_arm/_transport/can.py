@@ -130,7 +130,7 @@ class ManagedCANDispatcher(TargetQueueMixin):
         except BaseException as error:
             try:
                 self.stop()
-            except Exception:
+            except BaseException:
                 logger.exception("CANTransport initialization cleanup failed")
             _raise_mapped(error)
 

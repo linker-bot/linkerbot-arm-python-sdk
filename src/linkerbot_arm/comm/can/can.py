@@ -31,9 +31,6 @@ from linkerbot_transport.can.can import (
     _error_backoff_s as _error_backoff_s,
 )
 from linkerbot_transport.errors import (
-    LinkerbotError as _TransportErrorBase,
-)
-from linkerbot_transport.errors import (
     QueueFullError,
     TransportError,
 )
@@ -59,7 +56,6 @@ class CANMessageDispatcher(TargetQueueMixin, _TransportDispatcher):
         on_bus_error: Callable[[Exception], None] | None = None,
         max_consecutive_errors: int = DEFAULT_MAX_CONSECUTIVE_ERRORS,
     ) -> None:
-        self._compat_shutdown_lock = threading.Lock()
         self._init_target_queue()
         self._tx_stopped = threading.Event()
         self._tx_errors = 0
@@ -82,7 +78,7 @@ class CANMessageDispatcher(TargetQueueMixin, _TransportDispatcher):
             if hasattr(self, "_bus"):
                 try:
                     self.stop()
-                except Exception:
+                except BaseException:
                     logger.exception("Arm dispatcher initialization cleanup failed")
             if isinstance(error, _TransportValidationError):
                 raise ValidationError(*error.args) from error
@@ -147,15 +143,3 @@ class CANMessageDispatcher(TargetQueueMixin, _TransportDispatcher):
             super().stop()
         finally:
             self._tx.close()
-
-    def _shutdown_bus(self) -> _TransportErrorBase | None:
-        """Keep legacy log-and-finish policy even for concurrent stop calls."""
-        with self._compat_shutdown_lock:
-            error = super()._shutdown_bus()
-            if error is not None:
-                logger.warning("CAN bus shutdown failed: %s", error)
-                with self._shutdown_lock:
-                    self._shutdown_complete = True
-        # stop() and all worker joins stay in transport. A stopped worker may
-        # still need joining after a stop initiated inside a receive callback.
-        return None

@@ -7,7 +7,7 @@ from typing import Literal
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-from linkerbot_arm._transport import arm_dispatcher, close_managed_dispatcher
+from linkerbot_arm._transport import arm_dispatcher, close_arm, exit_arm
 from linkerbot_arm._transport.targets import ArmMotionQueueMixin, submit_targets
 from linkerbot_arm.arm.a7.motor import A7Motor, SensorType
 from linkerbot_arm.arm.p7.consts import (
@@ -31,7 +31,7 @@ from linkerbot_arm.arm.common import ControlMode, Pose, State
 from linkerbot_arm.arm.common._diagnostics import describe_motor
 from linkerbot_arm.comm import CanInterface, CANMessageDispatcher
 from linkerbot_arm.exceptions import StateError, ValidationError
-from linkerbot_arm.motion_timer import MotionTimer
+from linkerbot_arm.motion_timer import CancellableHomeMixin, MotionTimer
 
 # Joint-space waypoint streaming interval (matches A7's move_l interval).
 # 10 ms = 100 Hz; chosen to fit within current CAN dispatcher send-interval
@@ -51,7 +51,7 @@ def _guard_not_moving(method):
     return wrapper
 
 
-class P7(ArmMotionQueueMixin):
+class P7(ArmMotionQueueMixin, CancellableHomeMixin):
     """7-DoF arm with two motor variants on a single CAN bus.
 
     Joints 0-4 reuse :class:`linkerbot_arm.arm.a7.motor.A7Motor` (CMD-byte
@@ -170,6 +170,7 @@ class P7(ArmMotionQueueMixin):
         time.sleep(0.1)
 
     def disable(self) -> None:
+        self._motion_timer.cancel()
         for motor in self._motors:
             motor.disable()
 
@@ -178,6 +179,7 @@ class P7(ArmMotionQueueMixin):
             motor.reset_error()
 
     def emergency_stop(self) -> None:
+        self._motion_timer.cancel()
         # Use cached ``motor.angle`` (refreshed by each motor's own polling
         # or feedback path) rather than per-motor _read_register_float, which
         # only A7Motor supports. Setting the current angle as the target
@@ -306,6 +308,8 @@ class P7(ArmMotionQueueMixin):
         # observe a deterministic motion timer even when the move is trivial.
         duration = max(duration, _WAYPOINT_INTERVAL_S)
         self._motion_timer.start(duration)
+        if self._motion_timer._wait_cancelled(0):
+            return
 
         self.set_velocities([MAX_VELOCITY] * NUM_JOINTS)
         self.set_accelerations([MAX_ACCELERATION] * NUM_JOINTS)
@@ -319,8 +323,14 @@ class P7(ArmMotionQueueMixin):
                 fraction = step / n_steps
                 wp_angles = (start_arr + (target_arr - start_arr) * fraction).tolist()
                 send_time += _WAYPOINT_INTERVAL_S
-                time.sleep(max(0.0, send_time - time.perf_counter()))
-                self._set_angles(wp_angles, check_limits=False)
+                if self._motion_timer._wait_cancelled(
+                    max(0.0, send_time - time.perf_counter())
+                ):
+                    break
+                if not self._motion_timer._run_unless_cancelled(
+                    lambda: self._set_angles(wp_angles, check_limits=False)
+                ):
+                    break
         finally:
             self.set_velocities(saved_velocities)
             self.set_accelerations(saved_accelerations)
@@ -497,24 +507,14 @@ class P7(ArmMotionQueueMixin):
         return self._kx.get_joint_limits()
 
     def close(self) -> None:
-        if self._closed:
-            close_managed_dispatcher(self._can_dispatcher)
-            return
-
-        self.stop_polling()
-        self.wait_motion_done()
-        try:
-            self._can_dispatcher.stop()
-        except Exception:
-            pass
-        self._closed = True
+        """Release CAN resources; failures are raised and close may be retried."""
+        close_arm(self)
 
     def __enter__(self) -> "P7":
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-        return False
+        return exit_arm(self, exc_val)
 
     @staticmethod
     def _poses_close(

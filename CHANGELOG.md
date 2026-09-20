@@ -2,6 +2,15 @@
 
 ## 0.6.1 — Unreleased
 
+- Clean up failed arm initialization on both CAN backends. Keep failed physical
+  shutdown retryable; `close()` now reports cleanup failures instead of silently
+  succeeding. Successful calls still return None and repeated close is safe.
+- Preserve application exceptions if context-manager cleanup also fails.
+- Add `home_cancellable(cancel_event)` for lifecycle integrations on all models.
+  Stops/disable cancel motion waiting; P7 ceases new home waypoints after
+  cancellation. Existing home/move_j signatures and accepted FIFO order remain
+  unchanged. The caller must still issue emergency_stop or disable to stop motors.
+
 - Identify the arm side, one-based joint number and CAN ID in startup discovery
   and missing-feedback errors for A7, A7lite and P7.
 - Default A7, A7lite and P7 to CANTransport. Keep explicit

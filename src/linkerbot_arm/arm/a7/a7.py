@@ -8,7 +8,7 @@ from typing import Literal
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-from linkerbot_arm._transport import arm_dispatcher, close_managed_dispatcher
+from linkerbot_arm._transport import arm_dispatcher, close_arm, exit_arm
 from linkerbot_arm._transport.targets import ArmMotionQueueMixin, submit_targets
 from linkerbot_arm.arm.a7.consts import (
     DEFAULT_POLL_INTERVALS,
@@ -30,7 +30,7 @@ from linkerbot_arm.arm.common import ControlMode, Pose, State
 from linkerbot_arm.arm.common._diagnostics import describe_motor
 from linkerbot_arm.comm import CanInterface, CANMessageDispatcher
 from linkerbot_arm.exceptions import StateError, ValidationError
-from linkerbot_arm.motion_timer import MotionTimer
+from linkerbot_arm.motion_timer import CancellableHomeMixin, MotionTimer
 
 from .motor import A7Motor, SensorType
 
@@ -45,7 +45,7 @@ def _guard_not_moving(method):
     return wrapper
 
 
-class A7(ArmMotionQueueMixin):
+class A7(ArmMotionQueueMixin, CancellableHomeMixin):
     def __init__(
         self,
         side: Literal["left", "right"],
@@ -143,6 +143,7 @@ class A7(ArmMotionQueueMixin):
         time.sleep(0.1)
 
     def disable(self) -> None:
+        self._motion_timer.cancel()
         for motor in self._motors:
             motor.disable()
 
@@ -151,6 +152,8 @@ class A7(ArmMotionQueueMixin):
             motor.reset_error()
 
     def emergency_stop(self) -> None:
+        self._motion_timer.cancel()
+
         def stop_single(motor):
             angle = motor._read_register_float(SensorType.POSITION)
             motor.set_angle(angle)
@@ -250,14 +253,14 @@ class A7(ArmMotionQueueMixin):
         *,
         blocking: bool = True,
     ) -> None:
-        self._set_angles(target_joints)
-        self._motion_timer.start(
-            self._move_duration(
+        self._motion_timer._start_with_target(
+            lambda: self._move_duration(
                 self.get_angles(),
                 target_joints,
                 self.get_control_velocities(),
                 self.get_control_acceleration(),
-            )
+            ),
+            lambda: self._set_angles(target_joints),
         )
         if blocking:
             self.wait_motion_done()
@@ -432,24 +435,14 @@ class A7(ArmMotionQueueMixin):
         return self._kx.get_joint_limits()
 
     def close(self) -> None:
-        if self._closed:
-            close_managed_dispatcher(self._can_dispatcher)
-            return
-
-        self.stop_polling()
-        self.wait_motion_done()
-        try:
-            self._can_dispatcher.stop()
-        except Exception:
-            pass
-        self._closed = True
+        """Release CAN resources; failures are raised and close may be retried."""
+        close_arm(self)
 
     def __enter__(self) -> "A7":
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-        return False
+        return exit_arm(self, exc_val)
 
     @staticmethod
     def _poses_close(

@@ -104,14 +104,13 @@ def test_send_preserves_legacy_error_types(monkeypatch, error, expected):
         assert caught.value.args == error.args
 
 
-def test_concurrent_failed_shutdown_is_logged_once(monkeypatch, caplog):
+def test_concurrent_failed_shutdown_is_visible_and_can_retry(monkeypatch):
     dispatcher = CANMessageDispatcher("arm-shutdown-" + uuid.uuid4().hex, "virtual")
     shutdown = dispatcher._bus.shutdown
     calls = []
 
     def fail_shutdown():
         calls.append(1)
-        shutdown()
         raise OSError("shutdown failure")
 
     monkeypatch.setattr(dispatcher._bus, "shutdown", fail_shutdown)
@@ -132,9 +131,15 @@ def test_concurrent_failed_shutdown_is_logged_once(monkeypatch, caplog):
     for thread in callers:
         thread.join(2)
         assert not thread.is_alive()
+    assert len(failures) == 2
+    assert all("shutdown failure" in str(error) for error in failures)
+    assert calls == [1, 1]
+    assert not dispatcher._shutdown_complete
+    assert not dispatcher._bus._is_shutdown
+    monkeypatch.setattr(dispatcher._bus, "shutdown", shutdown)
     dispatcher.stop()
-    assert failures == []
-    assert calls == [1]
-    assert "shutdown failure" in caplog.text
+    dispatcher.stop()
+    assert dispatcher._shutdown_complete
+    assert dispatcher._bus._is_shutdown
     assert not dispatcher._recv_thread.is_alive()
     assert not dispatcher._send_thread.is_alive()

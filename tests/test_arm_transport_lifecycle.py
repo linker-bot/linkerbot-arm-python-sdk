@@ -183,5 +183,7 @@ def test_backend_fault_still_marks_arm_closed(constructed_arm, monkeypatch):
     assert errors == [error]
     with pytest.raises(CANError, match="simulated bus disconnect"):
         dispatcher.send(None)
-    # Legacy arm.close() returns early when faulted. The fixture explicitly
-    # stops the dispatcher; automatic fault cleanup is a later lifecycle task.
+    arm.close()
+    assert arm._resources_closed
+    assert dispatcher._bus._is_shutdown
+    assert not dispatcher._recv_thread.is_alive()

@@ -27,6 +27,7 @@ from linkerbot_arm.arm.common.model import (
     TorqueState,
     VelocityState,
 )
+from linkerbot_arm.motion_timer import MotionTimer
 
 
 class _FakeDispatcher:
@@ -41,7 +42,9 @@ class _FakeDispatcher:
         self.sent.append(msg)
 
 
-def _make_arm(modes: list[ControlMode]) -> tuple[A7lite, _FakeDispatcher, list[A7liteMotor]]:
+def _make_arm(
+    modes: list[ControlMode],
+) -> tuple[A7lite, _FakeDispatcher, list[A7liteMotor]]:
     dispatcher = _FakeDispatcher()
     motors = [
         A7liteMotor(id=61 + i, dispatcher=dispatcher)  # type: ignore[arg-type]
@@ -57,6 +60,7 @@ def _make_arm(modes: list[ControlMode]) -> tuple[A7lite, _FakeDispatcher, list[A
         motor._limit_spd = 2.5
 
     arm = A7lite.__new__(A7lite)
+    arm._motion_timer = MotionTimer()
     arm._motors = motors
     arm._control_modes = list(modes)
     return arm, dispatcher, motors
@@ -97,7 +101,9 @@ class TestEmergencyStopPerMode:
         assert _mit_frames(dispatcher.sent) == []
         assert not any(reg == 0x7017 for _, reg, _ in writes)
 
-    def test_all_csp_zeros_limit_spd_7017(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_all_csp_zeros_limit_spd_7017(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(time, "sleep", lambda _s: None)
         arm, dispatcher, _motors = _make_arm([ControlMode.CSP] * 7)
 

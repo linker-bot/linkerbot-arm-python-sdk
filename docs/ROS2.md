@@ -54,3 +54,18 @@ SDK 是 Python 包，不是 ROS package；无需把它作为独立 ROS package �
 额外设置环境变量。需要 dispatcher 时，在启动节点的环境设置
 `LINKERBOT_ARM_TRANSPORT=dispatcher`；取消该变量会恢复默认的 `CANTransport`。
 ROS2 构造和控制调用保持原样；后端选择仅影响新建实例，故障后不会自动恢复运动。
+
+## 可取消回零
+
+A7、A7lite、P7 提供 `home_cancellable(cancel_event: threading.Event) -> None`，供 ROS2
+等生命周期任务使用。现有 `home(blocking=...)` / `move_j(..., blocking=...)` 调用不变。
+任务线程运行 `home_cancellable(event)`；停止方先 `event.set()`，再调用 `emergency_stop()`
+或 `disable()`，然后等待任务线程退出。取消事件在回零进入 SDK 之前已经设置时，不提交目标。
+P7 在每个目标准入前检查取消，停止方与正在准入的目标批次串行化。
+
+该事件停止软件等待和新的回零目标提交，**不会自行向电机发送停止命令**；已经进入 CAN FIFO
+的帧保持原有顺序，不自动清队列或重放。软件停止仍有 SDK 调用、排队与驱动耗时，不是硬件急停。
+P7 的 `home(blocking=False)` 仍可能在调用内部执行轨迹发送，不应据此假定它立即返回。
+
+个人 ROS2 fork 的可取消任务节点需与本次 arm 和 transport 源码一起安装；节点在打开 CAN
+前检查 SDK 能力，缺少 `home_cancellable` 时会提示更新源码，不会退回不可取消的回零实现。
