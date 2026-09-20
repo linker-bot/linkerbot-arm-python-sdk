@@ -5,6 +5,8 @@ import threading
 from collections.abc import Callable
 from contextlib import contextmanager
 
+from linkerbot_arm.exceptions import StateError
+
 
 class MotionTimer:
     """Track motion state using an estimated duration timer.
@@ -29,6 +31,7 @@ class MotionTimer:
         self._external_cancel: threading.Event | None = None
         self._timer: threading.Timer | None = None
         self._generation = 0
+        self._stream_active = False
         self._event.set()  # not moving initially
 
     def start(self, duration: float) -> None:
@@ -38,6 +41,10 @@ class MotionTimer:
         """
         _validate_timeout(duration, name="duration")
         with self._lock:
+            if self._stream_active:
+                raise StateError(
+                    "A host trajectory is still planning, streaming or cleaning up"
+                )
             if self._external_cancel is not None and self._external_cancel.is_set():
                 self.cancel()
                 return
@@ -60,7 +67,7 @@ class MotionTimer:
 
     def is_moving(self) -> bool:
         """Return whether motion is in progress."""
-        return not self._event.is_set()
+        return self._stream_active or not self._event.is_set()
 
     def wait_done(self, timeout: float | None = None) -> bool:
         """Block until motion completes.
@@ -117,17 +124,49 @@ class MotionTimer:
         self, duration: Callable[[], float], action: Callable[[], None]
     ) -> None:
         with self._lock:
+            if self.is_moving():
+                raise StateError("Cannot start new motion while arm is moving")
             if self._external_cancel is not None and self._external_cancel.is_set():
                 self.cancel()
                 return
             try:
-                # Preserve target validation/admission before duration reads.
-                # The lock prevents stop from being lost between send and start.
+                # The caller validates the target first. Reject unusable motion
+                # parameters before admission, then time from accepted submission.
+                seconds = duration()
+                _validate_timeout(seconds, name="duration")
+                if self._external_cancel is not None and self._external_cancel.is_set():
+                    self.cancel()
+                    return
                 action()
-                self.start(duration())
+                self.start(seconds)
             except BaseException:
                 self.cancel()
                 raise
+
+    @contextmanager
+    def _stream_scope(self):
+        """Reserve motion ownership without starting an estimated countdown.
+
+        Planning/cleanup stay busy even after cancellation, so another motion
+        cannot replace their temporary parameters before the owner unwinds.
+        The stop caller never waits for planning to finish to set cancellation.
+        """
+        with self._lock:
+            if self.is_moving():
+                raise StateError("Cannot start new motion while arm is moving")
+            self._stream_active = True
+            self._generation += 1
+            self._cancel_event.clear()
+            self._event.clear()
+            active = self._external_cancel is None or not self._external_cancel.is_set()
+            if not active:
+                self._cancel_event.set()
+        try:
+            yield active
+        finally:
+            with self._lock:
+                self._stream_active = False
+                self._event.set()
 
     @contextmanager
     def _cancellation_scope(self, cancel_event: threading.Event):

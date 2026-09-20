@@ -208,14 +208,14 @@ class A7liteMotor:
         self._write_register_float(0x7017, limit_spd)
 
     def set_velocity(self, velocity: float) -> None:
-        self._control_velocity = VelocityState(velocity=velocity, timestamp=time.time())
         self._write_register_float(0x7024, velocity)
+        self._control_velocity = VelocityState(velocity=velocity, timestamp=time.time())
 
     def set_acceleration(self, acceleration: float) -> None:
+        self._write_register_float(0x7025, acceleration)
         self._control_acceleration = AccelerationState(
             acceleration=acceleration, timestamp=time.time()
         )
-        self._write_register_float(0x7025, acceleration)
 
     def set_mit(
         self,

@@ -36,6 +36,19 @@ def test_cancel_before_home_admission_never_submits_target(arm):
     assert not arm.is_moving()
 
 
+def test_cancel_during_duration_read_prevents_first_target(arm):
+    cancel = threading.Event()
+
+    def read_velocity():
+        cancel.set()
+        return [0.5] * 7
+
+    arm.get_control_velocities = read_velocity
+    arm.home_cancellable(cancel)
+    arm._set_angles.assert_not_called()
+    assert not arm.is_moving()
+
+
 def test_cancel_running_home_finishes_without_additional_targets(arm):
     cancel = threading.Event()
     first_target = threading.Event()
@@ -89,11 +102,9 @@ def test_target_admission_failure_does_not_leave_motion_running(arm):
 
 @pytest.mark.parametrize("arm", [A7, A7lite], indirect=True)
 def test_target_validation_precedes_duration_reads(arm):
-    original = ValidationError("invalid target")
-    arm._set_angles.side_effect = original
     arm.get_angles = Mock(side_effect=AssertionError("must validate first"))
-    with pytest.raises(ValidationError) as exc:
+    with pytest.raises(ValidationError, match="finite"):
         arm.move_j([float("nan")] * 7)
-    assert exc.value is original
+    arm._set_angles.assert_not_called()
     arm.get_angles.assert_not_called()
     assert not arm.is_moving()

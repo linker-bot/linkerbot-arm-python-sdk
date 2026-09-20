@@ -1,5 +1,21 @@
 # 运动控制
 
+运动完成仍按 SDK 的时长估算或主机轨迹提交进度判断，**不是电机实际到位确认**。
+A7（含 P7 前五关节）初始化时从 `0x1C` 读取轨迹速度，`get_velocities()` 仍返回实测速度。
+`move_j()` / `move_p()` 对非零位移要求有效的正速度与加速度；参数为零、缺失或非有限值时，
+在提交目标前抛出 `StateError`。可先调用 `set_velocities()` 和 `set_accelerations()` 设置参数。
+未发生位移的关节不要求正速度。
+
+`move_l()` 会先完成整段规划并校验全部关节目标，再临时调整参数和发送路点。
+规划失败不修改电机参数或提交部分轨迹；执行期间每次提交完成后至少等待 10 ms 再提交下一点。
+发送变慢或调度晚醒会延长执行时间，路点保持顺序，不追赶补发、不自动丢点。
+规划、发送和参数恢复期间 `is_moving()` 保持 True；停止可取消后续目标，规划器返回前仍保留忙状态。
+已进入 CAN FIFO 的帧不会撤销，通信排队和机械跟踪误差仍需结合反馈判断。
+
+失败或取消会尝试恢复原速度和加速度；一类参数恢复失败仍尝试另一类，失败写入日志并向调用方报告。
+若运动操作本身也失败，保留原始异常，恢复错误记录在日志中。恢复调用成功表示 SDK 接受参数，
+不保证所有电机已经执行；无法恢复时应检查通信及参数后再运动。
+
 > **PP 模式**：本节的 `home` / `move_j` / `move_p` / `move_l` 均依赖 Profile Position。
 > MIT / 运控模式请使用 `set_control_mode(ControlMode.MIT)` + 周期调用 `set_mits(...)`；
 > CSP 模式请使用 `set_control_mode(ControlMode.CSP)` + `set_limit_spds` + 周期调用 `set_csp_angles(...)`。
@@ -71,7 +87,7 @@ with A7lite(side="left", interface_name="can0") as arm:
 
 ## move_l
 
-通过发送机械臂 TCP 6D 位姿（x, y, z, rx, ry, rz），控制机械臂**直线**运动。末端沿笛卡尔空间直线运动，位置使用梯形速度规划，姿态使用球面线性插值（Slerp）。`move_l` 始终阻塞直到运动完成，无 `blocking` 参数。
+通过发送机械臂 TCP 6D 位姿（x, y, z, rx, ry, rz），控制机械臂**直线**运动。末端沿笛卡尔空间直线运动，位置使用梯形速度规划，姿态使用球面线性插值（Slerp）。`move_l` 始终阻塞到主机轨迹提交及参数恢复结束，无 `blocking` 参数。
 
 ```python
 from linkerbot_arm import A7lite, Pose
@@ -113,7 +129,7 @@ if arm.is_moving():
 
 ## 等待运动完成
 
-阻塞当前线程，直到运动计时器归零。通常配合 `blocking=False` 使用。
+阻塞当前线程，直到估算等待或主机轨迹执行结束；取消也会解除等待。通常配合 `blocking=False` 使用。
 
 ```python
 arm.move_j([0.0, 0.0, 0.0, 1.57, 0.0, 0.0, 0.0], blocking=False)

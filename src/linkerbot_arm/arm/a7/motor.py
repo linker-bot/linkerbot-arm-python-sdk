@@ -37,6 +37,7 @@ class SensorType(IntEnum):
 
 class InternalSensorType(IntEnum):
     ENABLED = 0x2B
+    CONTROL_VELOCITY = 0x1C
     ACCELERATION = 0x1D
     POSITION_KP = 0x19
     VELOCITY_KP = 0x17
@@ -200,14 +201,14 @@ class A7Motor:
         )
 
     def set_velocity(self, velocity: float) -> None:
-        self._control_velocity = VelocityState(velocity=velocity, timestamp=time.time())
         self._send(bytes([0x1F]) + struct.pack("<f", velocity))
+        self._control_velocity = VelocityState(velocity=velocity, timestamp=time.time())
 
     def set_acceleration(self, acceleration: float) -> None:
+        self._send(bytes([0x20]) + struct.pack("<f", acceleration))
         self._control_acceleration = AccelerationState(
             acceleration=acceleration, timestamp=time.time()
         )
-        self._send(bytes([0x20]) + struct.pack("<f", acceleration))
 
     def set_deceleration(self, deceleration: float) -> None:
         self._send(bytes([0x21]) + struct.pack("<f", deceleration))
@@ -250,7 +251,9 @@ class A7Motor:
             timestamp=now,
         )
         self._control_velocity = VelocityState(
-            velocity=self._read_register_float(SensorType.VELOCITY, timeout_s),
+            velocity=self._read_register_float(
+                InternalSensorType.CONTROL_VELOCITY, timeout_s
+            ),
             timestamp=now,
         )
         self._control_acceleration = AccelerationState(

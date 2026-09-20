@@ -30,16 +30,25 @@ from linkerbot_arm.arm.p7.motor_v2 import MotorV2
 from linkerbot_arm.arm.common import ControlMode, Pose, State
 from linkerbot_arm.arm.common._diagnostics import describe_motor
 from linkerbot_arm.arm.common._discovery import check_motors
+from linkerbot_arm.arm.common._motion import (
+    joint_duration,
+    point_duration,
+    trapezoidal_duration,
+    validate_target,
+)
+from linkerbot_arm.arm.common._stream import (
+    WAYPOINT_INTERVAL,
+    plan_linear,
+    stream_targets,
+)
 from linkerbot_arm.comm import CanInterface, CANMessageDispatcher
 from linkerbot_arm.exceptions import StateError, ValidationError
 from linkerbot_arm.motion_timer import CancellableHomeMixin, MotionTimer
 
 # Joint-space waypoint streaming interval (matches A7's move_l interval).
 # 10 ms = 100 Hz; chosen to fit within current CAN dispatcher send-interval
-# headroom alongside the V1 motors' polling traffic. Higher streaming rates
-# require the V1 motors to switch from polling to a periodic active-report
-# mode first (out of scope for this PR).
-_WAYPOINT_INTERVAL_S = 0.01
+# headroom alongside the V1 motors' polling traffic. The shared trajectory
+# executor stretches this period when submission or scheduling is delayed.
 
 
 def _guard_not_moving(method):
@@ -162,22 +171,24 @@ class P7(ArmMotionQueueMixin, CancellableHomeMixin):
         time.sleep(0.1)
 
     def disable(self) -> None:
-        self._motion_timer.cancel()
-        for motor in self._motors:
-            motor.disable()
+        with self._motion_timer._lock:
+            self._motion_timer.cancel()
+            for motor in self._motors:
+                motor.disable()
 
     def reset_error(self) -> None:
         for motor in self._motors:
             motor.reset_error()
 
     def emergency_stop(self) -> None:
-        self._motion_timer.cancel()
-        # Use cached ``motor.angle`` (refreshed by each motor's own polling
-        # or feedback path) rather than per-motor _read_register_float, which
-        # only A7Motor supports. Setting the current angle as the target
-        # tells each motor to "hold here".
-        for motor in self._motors:
-            motor.set_angle(motor.angle.angle)
+        with self._motion_timer._lock:
+            self._motion_timer.cancel()
+            # Use cached ``motor.angle`` (refreshed by each motor's own polling
+            # or feedback path) rather than per-motor _read_register_float, which
+            # only A7Motor supports. Setting the current angle as the target
+            # tells each motor to "hold here".
+            for motor in self._motors:
+                motor.set_angle(motor.angle.angle)
 
     def _set_angles(self, angles: list[float], *, check_limits: bool = True) -> None:
         if len(angles) != len(self._motors):
@@ -269,65 +280,39 @@ class P7(ArmMotionQueueMixin, CancellableHomeMixin):
         *,
         blocking: bool = True,
     ) -> None:
-        # P7 cannot rely on the V1 motors' drive-side trapezoidal alone,
-        # because the V2 motors (joints 5-6) have no drive-side trajectory
-        # generator and would step-respond to a one-shot set_angle. We
-        # host-stream interpolated waypoints to all 7 motors in lockstep,
-        # mirroring A7's move_l V/A=MAX hack: per-joint V/A is raised to MAX
-        # so the V1 motors' drive-side trapezoidal becomes a thin pass-
-        # through, then we linearly interpolate from current to target over
-        # the trapezoidal-estimated duration.
-        if len(target_joints) != NUM_JOINTS:
-            raise ValueError(
-                f"Angles count must be {NUM_JOINTS}, got {len(target_joints)}"
-            )
-        for i, (angle, (lo, hi)) in enumerate(
-            zip(target_joints, self._kx.get_joint_limits())
-        ):
-            if not (lo <= angle <= hi):
-                raise ValidationError(
-                    f"Joint {i} angle {angle:.4f} rad out of range [{lo:.4f}, {hi:.4f}]"
+        # V2 joints require host interpolation; retain synchronous streaming
+        # even when blocking=False, which only omits the final settling wait.
+        with self._motion_timer._stream_scope() as active:
+            if not active:
+                return
+            validate_target(self, target_joints)
+            try:
+                start_angles = self.get_angles()
+                duration = self._move_duration(
+                    start_angles,
+                    target_joints,
+                    self.get_control_velocities(),
+                    self.get_control_acceleration(),
                 )
-
-        start_angles = self.get_angles()
-        saved_velocities = self.get_control_velocities()
-        saved_accelerations = self.get_control_acceleration()
-
-        duration = self._move_duration(
-            start_angles, target_joints, saved_velocities, saved_accelerations
-        )
-        # Ensure at least one streaming step even for tiny moves so callers
-        # observe a deterministic motion timer even when the move is trivial.
-        duration = max(duration, _WAYPOINT_INTERVAL_S)
-        self._motion_timer.start(duration)
-        if self._motion_timer._wait_cancelled(0):
-            return
-
-        self.set_velocities([MAX_VELOCITY] * NUM_JOINTS)
-        self.set_accelerations([MAX_ACCELERATION] * NUM_JOINTS)
-
-        try:
-            n_steps = max(1, int(round(duration / _WAYPOINT_INTERVAL_S)))
+            except AttributeError as error:
+                raise StateError(
+                    "Motion feedback or control parameters are unavailable; "
+                    "read initial state and set_velocities()/set_accelerations() before moving"
+                ) from error
+            n_steps = max(1, math.ceil(duration / WAYPOINT_INTERVAL))
             start_arr = np.array(start_angles)
-            target_arr = np.array(target_joints)
-            send_time = time.perf_counter()
-            for step in range(1, n_steps + 1):
-                fraction = step / n_steps
-                wp_angles = (start_arr + (target_arr - start_arr) * fraction).tolist()
-                send_time += _WAYPOINT_INTERVAL_S
-                if self._motion_timer._wait_cancelled(
-                    max(0.0, send_time - time.perf_counter())
-                ):
-                    break
-                if not self._motion_timer._run_unless_cancelled(
-                    lambda: self._set_angles(wp_angles, check_limits=False)
-                ):
-                    break
-        finally:
-            self.set_velocities(saved_velocities)
-            self.set_accelerations(saved_accelerations)
-            if blocking:
-                self.wait_motion_done()
+            delta = np.array(target_joints) - start_arr
+            waypoints = (
+                (start_arr + delta * (step / n_steps)).tolist()
+                for step in range(1, n_steps + 1)
+            )
+            stream_targets(
+                self,
+                waypoints,
+                max_velocity=MAX_VELOCITY,
+                max_acceleration=MAX_ACCELERATION,
+                settle=blocking,
+            )
 
     @_guard_not_moving
     def move_p(
@@ -342,14 +327,10 @@ class P7(ArmMotionQueueMixin, CancellableHomeMixin):
         target_joints = self.inverse_kinematics(
             target_pose, current_angles=current_angles
         )
-        self._set_angles(target_joints, check_limits=False)
-        self._motion_timer.start(
-            self._move_duration(
-                self.get_angles(),
-                target_joints,
-                self.get_control_velocities(),
-                self.get_control_acceleration(),
-            )
+        validate_target(self, target_joints, check_limits=False)
+        self._motion_timer._start_with_target(
+            lambda: point_duration(self, target_joints),
+            lambda: self._set_angles(target_joints, check_limits=False),
         )
         if blocking:
             self.wait_motion_done()
@@ -383,77 +364,45 @@ class P7(ArmMotionQueueMixin, CancellableHomeMixin):
                 f"angular_acceleration {angular_acceleration} out of range (0, {MOVE_L_MAX_ANGULAR_ACCELERATION}]"
             )
 
-        WAYPOINT_INTERVEL = 0.01
-
-        if current_angles is not None and current_pose is not None:
-            fk_pose = self._kx.forward_kinematics(current_angles)
-            if not self._poses_close(fk_pose, current_pose):
-                warnings.warn(
-                    "current_pose does not match FK(current_angles). "
-                    "Using FK result instead.",
-                    stacklevel=2,
+        with self._motion_timer._stream_scope() as active:
+            if not active:
+                return
+            if current_angles is not None and current_pose is not None:
+                fk_pose = self._kx.forward_kinematics(current_angles)
+                if not self._poses_close(fk_pose, current_pose):
+                    warnings.warn(
+                        "current_pose does not match FK(current_angles). "
+                        "Using FK result instead.",
+                        stacklevel=2,
+                    )
+                    current_pose = fk_pose
+            elif current_angles is not None:
+                current_pose = self._kx.forward_kinematics(current_angles)
+            elif current_pose is not None:
+                raise ValueError(
+                    "current_angles must be provided when current_pose is specified."
                 )
-                current_pose = fk_pose
-        elif current_angles is not None:
-            current_pose = self._kx.forward_kinematics(current_angles)
-        elif current_pose is not None:
-            raise ValueError(
-                "current_angles must be provided when current_pose is specified."
+            else:
+                current_angles = self.get_angles()
+                current_pose = self._kx.forward_kinematics(current_angles)
+
+            waypoints = plan_linear(
+                self,
+                current_pose,
+                current_angles,
+                target_pose,
+                max_velocity=max_velocity,
+                acceleration=acceleration,
+                max_angular_velocity=max_angular_velocity,
+                angular_acceleration=angular_acceleration,
             )
-        else:
-            current_angles = self.get_angles()
-            current_pose = self._kx.forward_kinematics(current_angles)
-
-        current_3d_pose = current_pose.to_list()[:3]
-        target_3d_pose = target_pose.to_list()[:3]
-        loc_diff = np.linalg.norm(np.array(target_3d_pose) - np.array(current_3d_pose))
-
-        start_rot = R.from_euler(
-            "zyx", [current_pose.rz, current_pose.ry, current_pose.rx]
-        )
-        end_rot = R.from_euler("zyx", [target_pose.rz, target_pose.ry, target_pose.rx])
-        rot_diff = (start_rot.inv() * end_rot).magnitude()
-
-        blocking_time = (
-            max(
-                self._trapezoidal_duration(loc_diff, max_velocity, acceleration),  # type: ignore
-                self._trapezoidal_duration(
-                    rot_diff, max_angular_velocity, angular_acceleration
-                ),
-            )
-            + WAYPOINT_INTERVEL
-        )
-        self._motion_timer.start(blocking_time)
-
-        current_velocities = self.get_control_velocities()
-        current_accelerations = self.get_control_acceleration()
-
-        self.set_velocities([MAX_VELOCITY] * NUM_JOINTS)
-        self.set_accelerations([MAX_ACCELERATION] * NUM_JOINTS)
-
-        send_time = time.perf_counter()
-        try:
-            for wp in list(
-                self._kx.plan_move_l(
-                    current_pose,
-                    current_angles,
-                    target_pose,
-                    max_velocity=max_velocity,
-                    acceleration=acceleration,
-                    max_angular_velocity=max_angular_velocity,
-                    angular_acceleration=angular_acceleration,
-                    waypoint_interval=WAYPOINT_INTERVEL,
+            if waypoints:
+                stream_targets(
+                    self,
+                    waypoints,
+                    max_velocity=MAX_VELOCITY,
+                    max_acceleration=MAX_ACCELERATION,
                 )
-            ):
-                send_time += WAYPOINT_INTERVEL
-                time.sleep(max(0.0, send_time - time.perf_counter()))
-                self._set_angles(wp.angles, check_limits=False)
-        except Exception as e:
-            raise e
-        finally:
-            self.set_velocities(current_velocities)
-            self.set_accelerations(current_accelerations)
-            self.wait_motion_done()
 
     def set_position_kps(self, kps: list[float]) -> None:
         if len(kps) != len(self._motors):
@@ -522,18 +471,7 @@ class P7(ArmMotionQueueMixin, CancellableHomeMixin):
     def _trapezoidal_duration(
         distance: float, speed: float, acceleration: float
     ) -> float:
-        if distance < 1e-12:
-            return 0.0
-        v = abs(speed)
-        a = abs(acceleration)
-        if a < 1e-12 or v < 1e-12:
-            return 0.0
-        t_acc = v / a
-        d_acc = 0.5 * a * t_acc**2
-        if 2 * d_acc >= distance:
-            return 2.0 * math.sqrt(distance / a)
-        t_cruise = (distance - 2 * d_acc) / v
-        return 2 * t_acc + t_cruise
+        return trapezoidal_duration(distance, speed, acceleration)
 
     def _move_duration(
         self,
@@ -542,17 +480,8 @@ class P7(ArmMotionQueueMixin, CancellableHomeMixin):
         control_speeds: list[float],
         control_accelerations: list[float],
     ) -> float:
-        return max(
-            (
-                self._trapezoidal_duration(abs(tgt - cur), v, a)
-                for cur, tgt, v, a in zip(
-                    current_angles,
-                    target_angles,
-                    control_speeds,
-                    control_accelerations,
-                )
-            ),
-            default=0.0,
+        return joint_duration(
+            current_angles, target_angles, control_speeds, control_accelerations
         )
 
     def save_params(self) -> None:

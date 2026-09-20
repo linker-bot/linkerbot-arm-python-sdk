@@ -2,6 +2,17 @@
 
 ## 0.6.1 — Unreleased
 
+- Read A7 profile velocity from 0x1C separately from measured velocity (0x05),
+  including P7's first five joints. Validate nonzero-motion timing parameters
+  before admitting targets; zero/unknown/non-finite profiles now raise StateError.
+  Rejected A7/A7lite profile writes no longer update accepted-value caches.
+- Finish and validate all three models' linear plans before temporary parameter
+  changes or execution. Share ordered streaming with P7 move_j: wait at least
+  10 ms between submissions, stretch time on delays, and never catch up in bursts.
+  Keep motion busy through streaming and cleanup, and stop new targets on cancel.
+- Attempt both parameter restores on failure, preserve the original exception,
+  and serialize cleanup with stop/disable so it cannot interrupt A7lite's zero-speed
+  hold. Motion return values still do not prove physical arrival.
 - Match A7lite register replies and P7 V2 Flash replies by address/index; reject
   malformed frames before completing a read. Same-address reads remain serialized;
   the wire protocol cannot distinguish a late reply to the same address.
