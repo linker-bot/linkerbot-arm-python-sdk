@@ -185,7 +185,7 @@ def test_p7_heartbeat_is_ordered_with_concurrent_targets():
         assert dispatcher._tx.get_health().pending_fifo == 8
         dispatcher._tx.drain()
         assert len(dispatcher.sent) == 15
-        assert bytes(dispatcher.sent[7].data) == arm._motors[5]._build_servo_frame(
+        assert bytes(dispatcher.sent[7].data) == arm._motors[5]._build_ptm_frame(
             0.1, 0
         )
     finally:

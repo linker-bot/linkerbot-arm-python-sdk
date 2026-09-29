@@ -40,6 +40,18 @@ def test_all_original_signatures(relative, record):
     collect(tree.body)
     for name, signature in record["signatures"].items():
         if (
+            relative == "linkerbot/arm/p7/motor_v2.py"
+            and name == "MotorV2._build_servo_frame"
+        ):
+            # PTM intentionally replaces only this private encoding helper.
+            assert name not in signatures
+            assert signatures["MotorV2._build_ptm_frame"] == {
+                "args": "self, theta_ref: float, v_ref: float, t_ref: float | None=None",
+                "returns": "bytes",
+                "decorators": [],
+            }
+            continue
+        if (
             relative == "linkerbot/comm/can/can.py"
             or relative.startswith("linkerbot/comm/canfd/")
         ) and name not in signatures:

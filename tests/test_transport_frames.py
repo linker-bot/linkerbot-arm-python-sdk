@@ -1,4 +1,4 @@
-"""Exercise real dispatcher workers and unchanged motor frames on virtual CAN.
+"""Exercise real dispatcher workers and motor protocol frames on virtual CAN.
 
 Set ARM_TEST_VCAN to an isolated Linux vcan interface to run the same assertions
 through SocketCAN. No physical CAN interface is opened by this test suite.
@@ -85,7 +85,7 @@ def link(request):
     [
         (A7Motor, 61, 0.5, 61, False, bytes.fromhex("0a0000003f")),
         (A7liteMotor, 61, 0.5, 0x1200FD3D, True, bytes.fromhex("167000000000003f")),
-        (MotorV2, 66, 0.0, 66, False, bytes.fromhex("8000800f17330005")),
+        (MotorV2, 66, 0.0, 66, False, bytes.fromhex("80008000424cc800")),
     ],
 )
 def test_motor_control_frames_and_feedback(

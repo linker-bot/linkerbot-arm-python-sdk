@@ -109,9 +109,21 @@ def test_pre_migration_api_snapshot_is_current() -> None:
             additions = {
                 "A7Motor": {"_consume_poll", "_prepare_angle"},
                 "A7liteMotor": {"_prepare_angle", "_prepare_mit"},
-                "MotorV2": {"_prepare_angle", "_heartbeat_once"},
+                "MotorV2": {
+                    "_prepare_angle",
+                    "_heartbeat_once",
+                    "_build_ptm_frame",
+                    "ensure_ptm_mode",
+                    "set_torque_ref",
+                },
+                "P7": {"_ensure_v2_ptm_mode"},
                 "DataRelay": {"try_request", "_register_notified_waiter"},
             }.get(cls.__name__, set())
             for name, signature in expected["methods"].items():
+                if cls is MotorV2 and name == "_build_servo_frame":
+                    # The upstream PTM fix replaces this private wire encoder.
+                    # Keep the frozen baseline and all public signatures intact.
+                    assert name not in methods
+                    continue
                 assert methods[name] == signature, name
             assert methods.keys() - expected["methods"].keys() == additions

@@ -50,6 +50,9 @@ def constructed_arm(request, monkeypatch):
             def read_initial_state(self):
                 events.append(("initial", self._id))
 
+            def ensure_ptm_mode(self, timeout_s=0.2):
+                events.append(("ptm", self._id))
+
             def has_initial_data(self):
                 events.append(("has_initial", self._id))
                 return True
@@ -121,6 +124,8 @@ def test_constructor_and_normal_close_order(constructed_arm, side, first_id):
         {"tcp_offset": [0.0] * 3, "world_frame": "urdf"},
     )
     expected = [("check", id) for id in ids]
+    if cls is P7:
+        expected += [("ptm", id) for id in ids[5:]]
     if cls is A7lite:
         expected += [event for id in ids for event in [("report", id), ("initial", id)]]
         expected += [("has_reporting", id) for id in ids]

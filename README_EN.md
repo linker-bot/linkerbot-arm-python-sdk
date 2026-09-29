@@ -36,6 +36,9 @@ with A7(side="left", interface_name="can0") as arm:
 
 Replace `A7` with `A7lite` or `P7` for other models, and use `side="right"` for a right arm.
 Construction opens CAN, checks the motors and reads their initial state. The context manager closes the connection.
+P7 also checks the PTM mode of joints 6 and 7. When necessary it enters Rest,
+writes and saves the Flash mode, then verifies the readback; an existing PTM configuration skips writes.
+Set velocity and acceleration explicitly before moving. See the [P7 reference](docs/zh/src/reference/p7/README.md).
 
 ## Documentation
 

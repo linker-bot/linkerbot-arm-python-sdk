@@ -31,6 +31,8 @@ with A7(side="left", interface_name="can0") as arm:
 
 使用 A7lite 或 P7 时，将 `A7` 换成对应类；右臂使用 `side="right"`。
 构造时会打开 CAN、检查电机并读取初始状态，`with` 退出时关闭连接。
+P7 还会检查第 6、7 关节的 PTM 控制模式，必要时进入 Rest 并写入、保存 Flash；
+模式已正确时跳过写入。运动前须显式设置速度和加速度，详见 [P7 API](docs/zh/src/reference/p7/README.md)。
 
 常用导入：
 

@@ -68,8 +68,9 @@ class P7(ArmMotionQueueMixin, CancellableHomeMixin):
     protocol, drive-side trapezoidal trajectory generation).
 
     Joints 5-6 use :class:`linkerbot_arm.arm.p7.motor_v2.MotorV2`
-    (packed-frame protocol, Servo control mode with drive-side PD only —
-    no internal trajectory generator).
+    (packed-frame protocol, Motorevo P-T-M / 力位混合 mode with drive-side
+    position PD + torque feedforward — no internal trajectory generator).
+    Init idempotently writes Flash Control Mode ``0x02`` on those joints.
 
     To unify behaviour across the mixed motor types, the motion methods
     (:meth:`move_j` / :meth:`move_l`) raise per-joint velocity / acceleration
@@ -114,6 +115,7 @@ class P7(ArmMotionQueueMixin, CancellableHomeMixin):
             self._closed: bool = False
             self._polling: bool = False
             self._check_motors()
+            self._ensure_v2_ptm_mode()
             for motor in self._motors:
                 motor.read_initial_state()
             for motor in self._motors:
@@ -125,6 +127,12 @@ class P7(ArmMotionQueueMixin, CancellableHomeMixin):
 
     def _check_motors(self) -> None:
         check_motors(self._motors)
+
+    def _ensure_v2_ptm_mode(self) -> None:
+        """Ensure P-T-M on V2 joints before initial feedback and heartbeats."""
+        for motor in self._motors:
+            if isinstance(motor, MotorV2):
+                motor.ensure_ptm_mode()
 
     def _on_bus_error(self, error: Exception) -> None:
         self._bus_error = error

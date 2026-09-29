@@ -2,6 +2,20 @@
 
 ## 0.6.1 — Unreleased
 
+- Port the P7 PTM control fix from linkerbot-python-sdk 6f6da6b: use 16/12-bit
+  packed position, velocity, Kp, Kd and torque frames on joints 6/7, with default
+  Kp=4, Kd=15 and zero feedforward. V2 velocity-loop gain setters are now no-ops;
+  profile velocity remains a host planning value rather than PTM feedforward.
+- Ensure V2 Flash Control Mode 0x02 before feedback initialization and heartbeats.
+  Skip writes when already PTM; otherwise enter Rest, write/save and verify the
+  mode. Failures propagate through existing connection cleanup. Reverting Python
+  code alone does not restore the old motor mode; see docs/MIGRATION.md.
+- Keep atomic target admission, heartbeat ordering, indexed Flash replies,
+  periodic scheduling and cancellation. Replace the private Servo encoder with
+  the PTM encoder; public arm call signatures remain compatible.
+- Add the five-page Chinese P7 reference based on upstream f616481, adapted to
+  linkerbot_arm and its actual motion, state, coordinate and persistence behavior.
+
 - Read A7 profile velocity from 0x1C separately from measured velocity (0x05),
   including P7's first five joints. Validate nonzero-motion timing parameters
   before admitting targets; zero/unknown/non-finite profiles now raise StateError.

@@ -38,5 +38,24 @@ python -c "import linkerbot_arm; from linkerbot_arm import A7, A7lite, P7; print
 
 ## 回滚
 
+### P7 的 PTM 控制
+
+P7 第 6、7 关节已同步完整 SDK 的 PTM 控制修复。整臂方法签名保持不变，
+但构造会检查控制模式，必要时将电机 Flash Control Mode 从旧模式改为 `0x02`、保存并读回验证。
+V2 位置增益初始值改为 Kp=4、Kd=15，速度前馈默认为零；
+`set_velocity_kps()` / `set_velocity_kis()` 对这两个关节无操作，
+`set_velocities()` 只更新其主机规划速度缓存。旧 Servo 参数不能直接作为 PTM 调参依据。
+
+使用底层 `MotorV2` 时，应在发送 PTM 目标或启动心跳前调用 `ensure_ptm_mode()`，
+并停止其他控制发送；正常使用 `P7` 时构造流程已完成此步骤。
+内部编码 helper `_build_servo_frame()` 已替换为 `_build_ptm_frame()`，
+集成应使用 `set_angle()` 或整臂 `_set_angles()` 提交目标。
+
+仅回退 Python 包不会恢复电机 Flash 控制模式。回退到 Servo 驱动前，需要按电机配置流程
+恢复与旧驱动匹配的模式；不要向 PTM 模式的电机发送旧 Servo 帧。
+完整参数和持久化限制见 [P7 参数配置](zh/src/reference/p7/config.md)。
+
+### 应用环境
+
 保留原应用环境及对应 SDK 版本。回滚时恢复应用导入代码和原环境的依赖组合，
 避免仅回退包版本却保留新命名空间导入。
