@@ -1,6 +1,6 @@
 # CAN FD 接口
 
-A7、A7lite、P7 驱动使用经典 CAN，连接方式见 [CAN 接口](can.md)。
+A7、A7lite、P7、H75 驱动使用经典 CAN，连接方式见 [CAN 接口](can.md)。
 当前包还提供 CAN FD 通信组件，可供已有直接调用这些组件的应用使用：
 
 ```python

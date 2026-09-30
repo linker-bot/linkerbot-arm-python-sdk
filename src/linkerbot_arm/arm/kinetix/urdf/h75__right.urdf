@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<robot name="h75_arm_right">
+
+  <link name="R_arm_root" />
+
+  <link name="R1_Link">
+    <inertial>
+      <origin xyz="0.0035281 -0.055643 3.0085E-05" rpy="0 0 0" />
+      <mass value="0.79934" />
+      <inertia
+        ixx="0.0010555" ixy="-1.7677E-05" ixz="1.8766E-07"
+        iyy="0.00082658" iyz="1.3694E-06"
+        izz="0.0009129" />
+    </inertial>
+  </link>
+  <joint name="R1_Joint" type="revolute">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="R_arm_root" />
+    <child link="R1_Link" />
+    <axis xyz="0 -1 0" />
+    <limit lower="-2.79" upper="2.79" effort="0" velocity="0" />
+  </joint>
+
+  <link name="R2_Link">
+    <inertial>
+      <origin xyz="0.035159 -8.5935E-05 -0.075235" rpy="0 0 0" />
+      <mass value="0.85068" />
+      <inertia
+        ixx="0.0021012" ixy="3.7055E-07" ixz="0.00010608"
+        iyy="0.0024373" iyz="-5.2984E-08"
+        izz="0.0013781" />
+    </inertial>
+  </link>
+  <joint name="R2_Joint" type="revolute">
+    <origin xyz="-0.0411 -0.059 0" rpy="0 0 0" />
+    <parent link="R1_Link" />
+    <child link="R2_Link" />
+    <axis xyz="1 0 0" />
+    <limit lower="0" upper="3.14" effort="0" velocity="0" />
+  </joint>
+
+  <link name="R3_Link">
+    <inertial>
+      <origin xyz="-0.0011117 0.00067467 -0.077801" rpy="0 0 0" />
+      <mass value="0.8175" />
+      <inertia
+        ixx="0.0014314" ixy="-8.1697E-06" ixz="7.8741E-06"
+        iyy="0.0012851" iyz="0.0001001"
+        izz="0.0011233" />
+    </inertial>
+  </link>
+  <joint name="R3_Joint" type="revolute">
+    <origin xyz="0.0411 0 -0.1615" rpy="0 0 0" />
+    <parent link="R2_Link" />
+    <child link="R3_Link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-2.79" upper="2.79" effort="0" velocity="0" />
+  </joint>
+
+  <link name="R4_Link">
+    <inertial>
+      <origin xyz="7.154E-05 -0.041105 -0.05119" rpy="0 0 0" />
+      <mass value="0.46089" />
+      <inertia
+        ixx="0.00086445" ixy="2.1812E-07" ixz="-2.4954E-06"
+        iyy="0.00096718" iyz="-3.5042E-05"
+        izz="0.00043776" />
+    </inertial>
+  </link>
+  <joint name="R4_Joint" type="revolute">
+    <origin xyz="0.0001 0.038 -0.1015" rpy="0 0 0" />
+    <parent link="R3_Link" />
+    <child link="R4_Link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-2.27" upper="0.52" effort="0" velocity="0" />
+  </joint>
+
+  <link name="R5_Link">
+    <inertial>
+      <origin xyz="8.0415E-05 -0.00048698 -0.078626" rpy="0 0 0" />
+      <mass value="0.41137" />
+      <inertia
+        ixx="0.00057315" ixy="1.7634E-08" ixz="3.3105E-07"
+        iyy="0.00052326" iyz="5.0985E-05"
+        izz="0.00033581" />
+    </inertial>
+  </link>
+  <joint name="R5_Joint" type="revolute">
+    <origin xyz="0 -0.038 -0.132" rpy="0 0 0" />
+    <parent link="R4_Link" />
+    <child link="R5_Link" />
+    <axis xyz="0 0 -1" />
+    <limit lower="-2.79" upper="2.79" effort="0" velocity="0" />
+  </joint>
+
+  <link name="R6_Link">
+    <inertial>
+      <origin xyz="-0.0026678 -0.031389 -0.038791" rpy="0 0 0" />
+      <mass value="0.47189" />
+      <inertia
+        ixx="0.0006111" ixy="2.6357E-06" ixz="2.8397E-05"
+        iyy="0.00059883" iyz="-2.8409E-05"
+        izz="0.00032749" />
+    </inertial>
+  </link>
+  <joint name="R6_Joint" type="revolute">
+    <origin xyz="0.0001 0.0315 -0.11" rpy="0 0 0" />
+    <parent link="R5_Link" />
+    <child link="R6_Link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-1.22" upper="1.22" effort="0" velocity="0" />
+  </joint>
+
+  <link name="R7_Link">
+    <inertial>
+      <origin xyz="-0.028235 0.0013332 -0.031661" rpy="0 0 0" />
+      <mass value="0.17054" />
+      <inertia
+        ixx="0.00026452" ixy="-1.0767E-05" ixz="-3.5068E-05"
+        iyy="0.00031804" iyz="-2.2452E-06"
+        izz="0.00020411" />
+    </inertial>
+  </link>
+  <joint name="R7_Joint" type="revolute">
+    <origin xyz="0.0315 -0.0315 -0.059" rpy="0 0 0" />
+    <parent link="R6_Link" />
+    <child link="R7_Link" />
+    <axis xyz="1 0 0" />
+    <limit lower="-1.22" upper="1.22" effort="0" velocity="0" />
+  </joint>
+
+  <link name="R8_Link">
+    <inertial>
+      <origin xyz="2.3602E-13 -1.7031E-13 0.0001" rpy="0 0 0" />
+      <mass value="0.00031416" />
+      <inertia
+        ixx="1.021E-07" ixy="-1.0138E-33" ixz="-3.7895E-22"
+        iyy="1.021E-07" iyz="7.8997E-23"
+        izz="2.042E-07" />
+    </inertial>
+  </link>
+  <joint name="R8_Joint" type="fixed">
+    <origin xyz="-0.0315 0 -0.0757" rpy="0 0 0" />
+    <parent link="R7_Link" />
+    <child link="R8_Link" />
+    <axis xyz="0 0 0" />
+  </joint>
+
+</robot>

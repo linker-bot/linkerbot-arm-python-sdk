@@ -1,7 +1,7 @@
 [project]
 name = "linkerbot-arm"
 version = "0.6.1"
-description = "LinkerBot A7, A7lite and P7 robotic arm Python SDK"
+description = "LinkerBot A7, A7lite, P7 and H75 robotic arm Python SDK"
 readme = "README.md"
 authors = [{ name = "LinkerBot" }, { name = "Jason Yip", email = "yezi.2022@outlook.com" }]
 requires-python = ">=3.10"
@@ -45,6 +45,7 @@ markers = [
   "a7: A7 arm tests",
   "a7_lite: A7lite arm tests",
   "p7: P7 arm tests",
+  "h75: H75 arm tests",
   "basic: basic functionality",
   "lifecycle: connection and resource lifecycle",
   "safety: safety verification",

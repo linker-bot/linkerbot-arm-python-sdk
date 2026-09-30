@@ -122,7 +122,11 @@ def test_constructor_failure_releases_created_connection(
 
         monkeypatch.setattr(ArmKinetix, "from_builtin", fail)
     else:
-        motor = getattr(module, "A7Motor", getattr(module, "A7liteMotor", None))
+        motor = getattr(
+            module,
+            "A7Motor",
+            getattr(module, "A7liteMotor", getattr(module, "H75Motor", None)),
+        )
         method = "read_initial_state" if failure == "initial_state" else "start_polling"
         if cls.__name__ == "A7lite" and failure == "polling":
             method = "start_reporting"
@@ -163,7 +167,11 @@ def test_fault_during_initial_state_cannot_return_a_healthy_arm(
 ):
     cls, construct, _ = constructed_arm
     module = importlib.import_module(cls.__module__)
-    motor = getattr(module, "A7Motor", getattr(module, "A7liteMotor", None))
+    motor = getattr(
+        module,
+        "A7Motor",
+        getattr(module, "A7liteMotor", getattr(module, "H75Motor", None)),
+    )
 
     def fail_during_read(self):
         connection = connections[0]

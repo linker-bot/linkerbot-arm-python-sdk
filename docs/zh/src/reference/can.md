@@ -1,6 +1,6 @@
 # CAN 接口
 
-A7、A7lite 和 P7 使用经典 CAN，波特率为 **1 Mbps**。
+A7、A7lite、P7 和 H75 使用经典 CAN，波特率为 **1 Mbps**。
 构造函数的 `interface_name` 指定接口，`interface_type` 选择 python-can 后端，默认 `socketcan`。
 
 ## Linux / SocketCAN
@@ -84,7 +84,7 @@ Right arm joint 3 (CAN ID 53) did not respond during startup discovery. Expected
 单次探测超时本身不能判定电机损坏。
 启动时的主动上报缺失和初始反馈缺失提示也使用相同的关节命名。
 
-A7、A7lite 和 P7 使用相同的只读启动探测策略：首轮每关节最多等待 100 ms，
+A7、A7lite、P7 和 H75 使用相同的只读启动探测策略：首轮每关节最多等待 100 ms，
 仅对未响应关节再试一次、最多等待 200 ms。总探测预算为 2.5 秒，剩余预算会截短单次等待；
 到期后不再提交探测。正常立即回复不额外等待，已响应关节不重复查询。
 该预算只覆盖通信探测，不包括模型加载、初始参数读取和主动上报等待，也不能强制中断

@@ -6,7 +6,7 @@ import math
 import pytest
 
 
-@pytest.mark.parametrize("arm_type", ["a7", "a7_lite", "p7"])
+@pytest.mark.parametrize("arm_type", ["a7", "a7_lite", "p7", "h75"])
 @pytest.mark.parametrize("side", ["left", "right"])
 @pytest.mark.parametrize("world_frame", ["urdf", "maestro"])
 def test_builtin_kinematics(arm_type, side, world_frame):

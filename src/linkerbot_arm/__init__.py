@@ -18,12 +18,13 @@ from .exceptions import (
 )
 
 if TYPE_CHECKING:  # pragma: no cover - import-time only for static checkers
-    from .arm import A7, P7, A7lite, ControlMode, Pose
+    from .arm import A7, H75, P7, A7lite, ControlMode, Pose
 
 # Map every lazily-exported public name to (submodule, attribute).
 # Adding a new public re-export here is the only change required to surface it
 # at the top level without forcing eager import of its subpackage.
 _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
+    "H75": ("linkerbot_arm.arm", "H75"),
     "A7": ("linkerbot_arm.arm", "A7"),
     "P7": ("linkerbot_arm.arm", "P7"),
     "A7lite": ("linkerbot_arm.arm", "A7lite"),
@@ -52,6 +53,7 @@ __all__ = [  # noqa: RUF022 - preserve the original export order
     "CANError",
     "ValidationError",
     "StateError",
+    "H75",
     "A7",
     "P7",
     "A7lite",

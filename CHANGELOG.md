@@ -2,6 +2,30 @@
 
 ## 0.6.1 — Unreleased
 
+- Fix six H75 review findings: reserve IK requests through cancellation; await
+  lifecycle send completion and read back enable state before brake release;
+  skip disabling joints whose brake-lock command fails; exempt emergency holds
+  from ordinary target-age expiry; wait for motion restoration before closing;
+  serialize profile admission/caches and reject external tuning during SDK motion.
+- Keep fatal CAN callbacks from blocking checked-send waiters. Lifecycle timeouts
+  expire unstarted queued frames; send/readback results do not certify physical
+  brake motion or EEPROM persistence.
+
+- Add H75 from linkerbot-python-sdk feat/h75_arm@9041b05: Weiyi IQ24 motors,
+  configurable per-joint scaling, left/right URDF and lazy public exports.
+  Use explicit amperes via get_currents()/get_current_states(); torque remains
+  unavailable rather than mislabeling current as Nm.
+- Integrate H75 with both CAN backends, indexed replies, one periodic worker,
+  atomic target admission and failed-initialization cleanup. Unknown profile
+  velocity/deceleration require configuration; caches track accepted encoded values.
+- Preserve H75 PP/CSP mapping and proximal brake ordering, add best-effort disable
+  after failed enable, and require disabled/idle mode changes and calibration.
+  Point moves require PP; linear streaming supports cancellation and independent
+  acceleration/deceleration restoration, including H75's lower acceleration floor.
+- Add H75 reference pages and explicit smoke/calibration tools. Firmware scaling,
+  physical brake timing and migrated hardware behavior still require verification;
+  ROS2 model registration and deployment changes are outside this migration.
+
 - Port the P7 PTM control fix from linkerbot-python-sdk 6f6da6b: use 16/12-bit
   packed position, velocity, Kp, Kd and torque frames on joints 6/7, with default
   Kp=4, Kd=15 and zero feedforward. V2 velocity-loop gain setters are now no-ops;

@@ -7,6 +7,8 @@ import json
 from enum import Enum
 from pathlib import Path
 
+from pydantic import BaseModel
+
 from linkerbot_arm import A7, P7, A7lite, ControlMode, Pose
 from linkerbot_arm.arm import State, WayPoint
 from linkerbot_arm.arm.a7.motor import A7Motor
@@ -78,7 +80,14 @@ def test_pre_migration_api_snapshot_is_current() -> None:
             assert expected["methods"] == {}
             assert _signature(cls) == "(*args) -> None"
             continue
-        assert _signature(cls) == expected["signature"]
+        if cls is State:
+            # Pydantic resolves forward references on first construction and
+            # then replaces the generated class signature with named fields.
+            # The inherited **data constructor remains the frozen contract.
+            assert expected["signature"] == "(**data: 'Any') -> 'None'"
+            assert cls.__init__ is BaseModel.__init__
+        else:
+            assert _signature(cls) == expected["signature"]
         if cls is CANMessageDispatcher:
             for name, signature in expected["methods"].items():
                 assert _signature(getattr(cls, name)) == signature, name

@@ -24,7 +24,7 @@ python -m pip install -c /path/to/linkerbot-arm/constraints/ros2.txt -e /path/to
 
 基础包使用系统提供的 Pinocchio；不要用独立环境的 `kinetix` extra 替换 ROS2 的二进制依赖组合。
 SDK 至少需要 NumPy 1.24 / SciPy 1.10。Humble 等较旧系统需要在兼容环境中满足这些最低版本。
-三款机械臂的构造函数均加载运动学，即使应用只做关节控制也需要 Pinocchio。
+独立 SDK 各型号的构造函数均加载运动学，即使应用只做关节控制也需要 Pinocchio。
 
 ## 不连接硬件的检查
 
@@ -39,7 +39,7 @@ SDK 是 Python 包，不是 ROS package；无需把它作为独立 ROS package �
 
 ## 适配器调用
 
-三款 arm 都以 `side`、`interface_name` 等参数构造。现有集成可继续使用：
+现有 ROS2 接入的 A7、A7lite、P7 都以 `side`、`interface_name` 等参数构造。现有集成可继续使用：
 
 - `enable()`、`disable()`、`reset_error()` 管理电机。
 - `_set_angles(angles)` 转发七个关节目标；`move_j()` / `home()` 支持 `blocking` 参数。
@@ -50,7 +50,7 @@ SDK 是 Python 包，不是 ROS package；无需把它作为独立 ROS package �
 查找仓库根目录或 `src`。旧 `LINKERBOT_SDK_SRC` 在该 fork 中保留过渡支持并输出提示，
 旧完整 SDK 必须经该变量显式提供。优先把所需 SDK 安装到节点实际使用的 Python 环境。
 
-完成 [固定源码安装](TRANSPORT.md) 后，三种型号默认使用 `CANTransport`，启动节点无需
+完成 [固定源码安装](TRANSPORT.md) 后，A7、A7lite、P7 默认使用 `CANTransport`，启动节点无需
 额外设置环境变量。需要 dispatcher 时，在启动节点的环境设置
 `LINKERBOT_ARM_TRANSPORT=dispatcher`；取消该变量会恢复默认的 `CANTransport`。
 ROS2 构造和控制调用保持原样；后端选择仅影响新建实例，故障后不会自动恢复运动。
@@ -69,3 +69,9 @@ P7 的 `home(blocking=False)` 仍可能在调用内部执行轨迹发送，不�
 
 个人 ROS2 fork 的可取消任务节点需与本次 arm 和 transport 源码一起安装；节点在打开 CAN
 前检查 SDK 能力，缺少 `home_cancellable` 时会提示更新源码，不会退回不可取消的回零实现。
+
+## H75 接入范围
+
+独立 SDK 已提供 `H75`，本次不修改 ROS2 适配器的型号注册或加载路径。
+接入时应显式加载 `linkerbot_arm.H75`，分别处理 PP/CSP，使用 A 单位的电流反馈；
+不能将 `get_currents()` 结果填作 Nm 力矩，且 CSP 流式限速需要调用方实现。

@@ -196,6 +196,7 @@ class ManagedCANDispatcher(TargetQueueMixin):
             if self._stopped.is_set() or self._error is not None:
                 return
             self._error = _mapped_error(error)
+        self._fail_checked_sends(self._error)
         self._available.set()
 
     def _receive(self) -> None:
@@ -235,6 +236,7 @@ class ManagedCANDispatcher(TargetQueueMixin):
                     logger.exception("CANTransport fault cleanup failed; retry close")
 
     def stop(self) -> None:
+        self._fail_checked_sends(CANError("CAN connection is closing"))
         periodic = getattr(self, "_arm_periodic_scheduler", None)
         if periodic is not None:
             periodic.close()

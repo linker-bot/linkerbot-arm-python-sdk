@@ -32,7 +32,26 @@ class MotionTimer:
         self._timer: threading.Timer | None = None
         self._generation = 0
         self._stream_active = False
+        self._worker_done = threading.Event()
+        self._worker_done.set()
+        self._worker_ident = None
+        self._worker_error = None
         self._event.set()  # not moving initially
+
+    def _begin_worker(self):
+        self._worker_ident = threading.get_ident()
+        self._worker_error = None
+        self._worker_done.clear()
+
+    def _is_worker_thread(self):
+        return self._worker_ident == threading.get_ident()
+
+    def _wait_worker_done(self, *, report_error=False):
+        if self._is_worker_thread():
+            raise StateError("Cannot wait for motion cleanup from its own worker")
+        self._worker_done.wait()
+        if report_error and self._worker_error is not None:
+            raise self._worker_error
 
     def start(self, duration: float) -> None:
         """Start or reset the motion timer.
@@ -143,8 +162,56 @@ class MotionTimer:
                 self.cancel()
                 raise
 
+    def _plan_and_start(
+        self, plan: Callable, duration: Callable, action: Callable, *, guard=None
+    ) -> None:
+        """Own point planning through target admission, without locking out stop.
+
+        Cancellation during IK must not be cleared by starting a later timer.
+        Handoff to the timer is atomic with target admission; failed/cancelled
+        planning releases busy state only after the planner has unwound.
+        """
+        with self._lock:
+            if guard is not None:
+                guard()
+            if self.is_moving():
+                raise StateError("Cannot start new motion while arm is moving")
+            self._stream_active = True
+            self._begin_worker()
+            self._generation += 1
+            self._cancel_event.clear()
+            self._event.clear()
+        started = False
+        try:
+            if self._wait_cancelled(0):
+                return
+            target = plan()
+            with self._lock:
+                if self._wait_cancelled(0):
+                    return
+                seconds = duration(target)
+                _validate_timeout(seconds, name="duration")
+                if self._wait_cancelled(0):
+                    return
+                action(target)
+                if self._wait_cancelled(0):
+                    return
+                self._stream_active = False
+                self.start(seconds)
+                started = True
+        except BaseException as error:
+            self._worker_error = error
+            raise
+        finally:
+            with self._lock:
+                self._stream_active = False
+                if not started:
+                    self._event.set()
+                self._worker_ident = None
+                self._worker_done.set()
+
     @contextmanager
-    def _stream_scope(self):
+    def _stream_scope(self, *, guard=None):
         """Reserve motion ownership without starting an estimated countdown.
 
         Planning/cleanup stay busy even after cancellation, so another motion
@@ -152,9 +219,12 @@ class MotionTimer:
         The stop caller never waits for planning to finish to set cancellation.
         """
         with self._lock:
+            if guard is not None:
+                guard()
             if self.is_moving():
                 raise StateError("Cannot start new motion while arm is moving")
             self._stream_active = True
+            self._begin_worker()
             self._generation += 1
             self._cancel_event.clear()
             self._event.clear()
@@ -163,10 +233,15 @@ class MotionTimer:
                 self._cancel_event.set()
         try:
             yield active
+        except BaseException as error:
+            self._worker_error = error
+            raise
         finally:
             with self._lock:
                 self._stream_active = False
                 self._event.set()
+                self._worker_ident = None
+                self._worker_done.set()
 
     @contextmanager
     def _cancellation_scope(self, cancel_event: threading.Event):

@@ -1,6 +1,6 @@
 # CAN 后端选择
 
-A7、A7lite、P7 默认使用 `CANTransport` 后端。构造函数及 `enable()`、`_set_angles()`、运动、状态和 `close()` 的调用方式不变；需要低层后端时可显式选择 dispatcher。
+A7、A7lite、P7、H75 默认使用 `CANTransport` 后端。构造函数及 `enable()`、`_set_angles()`、运动、状态和 `close()` 的调用方式不变；需要低层后端时可显式选择 dispatcher。
 
 ## 从固定源码安装
 
@@ -48,7 +48,7 @@ A7 的七关节查询共用一个周期线程；P7 的五个 V1 电机查询和�
 
 ## 整组目标与可选时延背压
 
-A7、A7lite、P7 的 `_set_angles()` 及 A7lite 的 `set_mits()`、`set_csp_angles()`、
+A7、A7lite、P7、H75 的 `_set_angles()` 及 A7lite 的 `set_mits()`、`set_csp_angles()`、
 `stream_joint_targets()` 均先完成全部编码，再将整组目标一次性加入 FIFO。七帧空间
 不足时整组抛 `queue.Full`，控制目标缓存也不更新。组内帧不会被其他排队命令插入；
 物理发送仍逐帧进行，故障可能产生已发送的前缀，并不保证七个电机同时执行。
@@ -112,3 +112,9 @@ unset LINKERBOT_ARM_TRANSPORT
 对应异常）；资源保留供再次 `close()`。不要将控制停止与资源释放完成视为同一状态。
 `with arm:` 的业务代码与清理同时失败时，保留业务异常并记录清理错误，之后仍可显式重试关闭。
 构造回滚的清理失败也会记录；强制结束进程不能由 Python 清理逻辑保证释放。
+
+## H75 接入
+
+H75 使用标准 CAN ID 路由，IQ24 协议由独立 H75Motor 编解码；不使用 A7 的浮点编码。
+七关节共用轮询线程和整组目标队列，沿用有界发现、回复匹配、关闭重试和运动取消。
+抱闸、CSP 和电流单位等型号差异见 [H75 reference](zh/src/reference/h75/README.md)。

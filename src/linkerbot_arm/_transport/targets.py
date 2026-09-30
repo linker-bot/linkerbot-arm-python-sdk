@@ -4,6 +4,7 @@ import math
 import queue
 import threading
 import time
+from concurrent.futures import TimeoutError as ReceiptTimeoutError
 from dataclasses import dataclass
 
 from linkerbot_transport import SendOutcome, TransmitArbiter, TransmitHealth
@@ -45,6 +46,60 @@ class TargetQueueMixin:
         self._target_lock = threading.RLock()
         self._max_target_age_s = None
         self._last_target_receipt = None
+        self._checked_condition = threading.Condition()
+        self._checked_error = None
+
+    def _fail_checked_sends(self, error):
+        # An in-flight receipt may finish only after a fault callback returns.
+        # Wake its caller before callbacks try to acquire the caller's locks.
+        with self._checked_condition:
+            if self._checked_error is None:
+                self._checked_error = error
+            self._checked_condition.notify_all()
+
+    def _send_checked(self, message, *, timeout_s=1.0):
+        """Wait for one lifecycle frame to reach the physical backend.
+
+        Retain FIFO order and capacity, but do not apply target-age admission.
+        A queued command which has not started by the deadline must expire;
+        an already in-flight frame cannot be retracted.
+        """
+        if (
+            isinstance(timeout_s, bool)
+            or not isinstance(timeout_s, (int, float))
+            or not math.isfinite(timeout_s)
+            or timeout_s <= 0
+        ):
+            raise ValidationError("checked-send timeout must be finite and positive")
+        deadline = time.monotonic() + timeout_s
+        try:
+            receipt = self._submit_target_frames((message,), deadline_at_s=deadline)
+
+            def completed(_):
+                with self._checked_condition:
+                    self._checked_condition.notify_all()
+
+            receipt.add_done_callback(completed)
+            with self._checked_condition:
+                ready = self._checked_condition.wait_for(
+                    lambda: receipt.done() or self._checked_error is not None,
+                    timeout=max(0.0, deadline - time.monotonic()),
+                )
+                if self._checked_error is not None:
+                    raise self._checked_error
+                if not ready:
+                    raise ReceiptTimeoutError("physical backend did not complete")
+            result = receipt.result(timeout=0)
+            if result.outcome is not SendOutcome.DISPATCHED:
+                raise CANError(f"Lifecycle frame was not dispatched: {result.outcome}")
+        except QueueFullError as error:
+            raise queue.Full() from error
+        except (ReceiptTimeoutError, TransportTimeoutError) as error:
+            raise TimeoutError(f"Lifecycle CAN send timed out: {error}") from error
+        except TransportError as error:
+            raise CANError(str(error)) from error
+        except Exception as error:
+            raise CANError(f"Lifecycle CAN send failed: {error}") from error
 
     def set_motion_queue_policy(self, *, max_target_age_s=None):
         """Opt in to rejecting stale queues and expiring unstarted targets.

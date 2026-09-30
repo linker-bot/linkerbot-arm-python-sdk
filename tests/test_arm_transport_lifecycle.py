@@ -9,12 +9,12 @@ import uuid
 import pytest
 from linkerbot_transport.can.can import CANMessageDispatcher as TransportDispatcher
 
-from linkerbot_arm import A7, P7, A7lite
+from linkerbot_arm import A7, H75, P7, A7lite
 from linkerbot_arm.comm.can import CANMessageDispatcher
 from linkerbot_arm.exceptions import CANError
 
 
-@pytest.fixture(params=[A7, A7lite, P7])
+@pytest.fixture(params=[A7, A7lite, P7, H75])
 def constructed_arm(request, monkeypatch):
     monkeypatch.setenv("LINKERBOT_ARM_TRANSPORT", "dispatcher")
     cls = request.param
@@ -37,7 +37,7 @@ def constructed_arm(request, monkeypatch):
 
     def motor_type(kind):
         class FakeMotor:
-            def __init__(self, id, dispatcher):
+            def __init__(self, id, dispatcher, **kwargs):
                 self._id = id
                 self._dispatcher = dispatcher
                 self.kind = kind
@@ -81,7 +81,7 @@ def constructed_arm(request, monkeypatch):
     kinetix.ArmKinetix = types.SimpleNamespace(from_builtin=from_builtin)
     monkeypatch.setitem(sys.modules, kinetix.__name__, kinetix)
     monkeypatch.setattr(module, "CANMessageDispatcher", open_dispatcher)
-    for name in ("A7Motor", "A7liteMotor", "MotorV2"):
+    for name in ("A7Motor", "A7liteMotor", "MotorV2", "H75Motor"):
         if hasattr(module, name):
             monkeypatch.setattr(module, name, motor_type(name))
 
@@ -111,12 +111,16 @@ def test_constructor_and_normal_close_order(constructed_arm, side, first_id):
         assert arm.control_modes is None
     else:
         assert arm._control_mode is None
-    kinds = ["A7liteMotor"] * 7 if cls is A7lite else ["A7Motor"] * 7
+    kinds = (
+        ["H75Motor"] * 7
+        if cls is H75
+        else (["A7liteMotor"] * 7 if cls is A7lite else ["A7Motor"] * 7)
+    )
     if cls is P7:
         kinds[5:] = ["MotorV2"] * 2
     assert events[0] == ("open", arm.can_interface.interface_name, "virtual")
     assert events[1:8] == [("motor", id, kind) for id, kind in zip(ids, kinds)]
-    model = {A7: "a7", A7lite: "a7_lite", P7: "p7"}[cls]
+    model = {A7: "a7", A7lite: "a7_lite", P7: "p7", H75: "h75"}[cls]
     assert events[8] == (
         "kinematics",
         model,
@@ -133,7 +137,11 @@ def test_constructor_and_normal_close_order(constructed_arm, side, first_id):
         expected += [("initial", id) for id in ids]
         expected += [("has_initial", id) for id in ids]
         intervals = importlib.import_module(cls.__module__).DEFAULT_POLL_INTERVALS
-        assert intervals == {0x06: 0.01, 0x05: 0.01, 0x03: 0.05, 0x5F: 1.0}
+        assert intervals == (
+            {0x06: 0.05, 0x05: 0.1, 0x04: 0.2, 0x5F: 2.0}
+            if cls is H75
+            else {0x06: 0.01, 0x05: 0.01, 0x03: 0.05, 0x5F: 1.0}
+        )
         expected += [("poll", id, intervals) for id in ids]
         assert arm._polling is True
     assert events[9:] == expected
@@ -141,7 +149,11 @@ def test_constructor_and_normal_close_order(constructed_arm, side, first_id):
     events.clear()
     assert arm.close() is None
     expected_close = [] if cls is A7lite else [("stop_poll", id) for id in ids]
-    assert events == expected_close + [("wait_motion",), ("close_bus",)]
+    assert events == (
+        [("wait_motion",)] + expected_close + [("close_bus",)]
+        if cls is H75
+        else expected_close + [("wait_motion",), ("close_bus",)]
+    )
     assert arm._closed is True
     assert not arm._can_dispatcher._recv_thread.is_alive()
     assert not arm._can_dispatcher._send_thread.is_alive()

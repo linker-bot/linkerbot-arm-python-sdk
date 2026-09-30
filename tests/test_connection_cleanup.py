@@ -31,7 +31,11 @@ def test_legacy_failed_constructor_releases_workers(
     elif stage == "discovery":
         monkeypatch.setattr(cls, "_check_motors", fail)
     else:
-        motor = getattr(module, "A7Motor", getattr(module, "A7liteMotor", None))
+        motor = getattr(
+            module,
+            "A7Motor",
+            getattr(module, "A7liteMotor", getattr(module, "H75Motor", None)),
+        )
         method = "read_initial_state" if stage == "initial" else "start_polling"
         if cls.__name__ == "A7lite" and stage == "polling":
             method = "start_reporting"

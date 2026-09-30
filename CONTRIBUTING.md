@@ -29,7 +29,7 @@ python -m build
 CAN_INTERFACE=can0 ARM_SIDE=left python -m pytest tests/arm/a7 -m 'hardware and not interactive'
 ```
 
-修改打包或 URDF 后，必须在源码目录之外安装 wheel 验证导入和六个模型的加载。
+修改打包或 URDF 后，必须在源码目录之外安装 wheel 验证导入和八个模型的加载。
 修改 ROS2 接入后，在安装新 SDK 的环境运行 ROS2 仓库 `tests/`；带 rclpy 的环境会额外运行真实节点测试。
 可运行 `python tools/check_ros2_adapter.py ../linker_arm_ros2` 检查真实 adapter 的调用契约；
 该工具使用测试进程内的导入映射，不能替代实际节点的加载验证。

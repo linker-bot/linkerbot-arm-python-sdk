@@ -38,7 +38,7 @@ python -m pip check
 
 六份左右臂 URDF 随安装包提供，无需设置额外资源路径。
 完成安装后，按 [CAN 接口配置](zh/src/reference/can.md)连接硬件。
-三种型号默认使用 `CANTransport`，无需设置环境变量；如需低层后端，在启动应用前设置
+四种型号默认使用 `CANTransport`，无需设置环境变量；如需低层后端，在启动应用前设置
 `LINKERBOT_ARM_TRANSPORT=dispatcher`。详见 [后端选择与故障恢复](TRANSPORT.md)。
 
 ## 版本管理

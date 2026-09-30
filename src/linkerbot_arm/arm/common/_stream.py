@@ -29,31 +29,66 @@ def plan_linear(arm, current_pose, current_angles, target_pose, **kwargs):
     return waypoints
 
 
-def _read_limits(arm, max_velocity, max_acceleration):
+def _profile_bounds(maximum, count):
+    values = [maximum] * count if isinstance(maximum, (int, float)) else list(maximum)
+    if len(values) != count or any(not math.isfinite(v) or v <= 0 for v in values):
+        raise StateError("Invalid per-joint streaming profile bounds")
+    return values
+
+
+def _read_limits(
+    arm,
+    max_velocity,
+    max_acceleration,
+    *,
+    min_acceleration=1.0,
+    independent_deceleration=False,
+):
     try:
         velocities = arm.get_control_velocities()
         accelerations = arm.get_control_acceleration()
+        decelerations = (
+            arm.get_control_decelerations() if independent_deceleration else None
+        )
     except AttributeError as error:
         raise StateError(
             "Control limits unavailable; read or set them before motion"
         ) from error
-    for name, values, minimum, maximum in (
+    fields = [
         ("velocity", velocities, 0, max_velocity),
-        ("acceleration", accelerations, 1, max_acceleration),
-    ):
+        ("acceleration", accelerations, min_acceleration, max_acceleration),
+    ]
+    if decelerations is not None:
+        fields.append(
+            ("deceleration", decelerations, min_acceleration, max_acceleration)
+        )
+    for name, values, minimum, maxima in fields:
         if len(values) != len(arm._motors) or any(
             not isinstance(value, (int, float))
             or not math.isfinite(value)
             or not minimum <= value <= maximum
-            for value in values
+            for value, maximum in zip(values, maxima)
         ):
             raise StateError(
                 f"Cannot restore invalid control {name}; set valid limits before motion"
             )
-    return list(velocities), list(accelerations)
+    return (
+        list(velocities),
+        list(accelerations),
+        None if decelerations is None else list(decelerations),
+    )
 
 
-def stream_targets(arm, waypoints, *, max_velocity, max_acceleration, settle=True):
+def stream_targets(
+    arm,
+    waypoints,
+    *,
+    max_velocity,
+    max_acceleration,
+    settle=True,
+    min_acceleration=1.0,
+    independent_deceleration=False,
+):
     """Execute in an owned MotionTimer._stream_scope; preserve every waypoint.
 
     Wait one interval after each submission completes, including the initial
@@ -63,7 +98,15 @@ def stream_targets(arm, waypoints, *, max_velocity, max_acceleration, settle=Tru
     timer = arm._motion_timer
     if timer._wait_cancelled(0):
         return
-    velocities, accelerations = _read_limits(arm, max_velocity, max_acceleration)
+    max_velocities = _profile_bounds(max_velocity, len(arm._motors))
+    max_accelerations = _profile_bounds(max_acceleration, len(arm._motors))
+    velocities, accelerations, decelerations = _read_limits(
+        arm,
+        max_velocities,
+        max_accelerations,
+        min_acceleration=min_acceleration,
+        independent_deceleration=independent_deceleration,
+    )
     changed_velocity = changed_acceleration = False
     original_error = None
     try:
@@ -72,11 +115,11 @@ def stream_targets(arm, waypoints, *, max_velocity, max_acceleration, settle=Tru
                 return
             # Set the flag first: a per-joint configuration can fail partway.
             changed_velocity = True
-            arm.set_velocities([max_velocity] * len(arm._motors))
+            arm.set_velocities(max_velocities)
             if timer._wait_cancelled(0):
                 return
             changed_acceleration = True
-            arm.set_accelerations([max_acceleration] * len(arm._motors))
+            arm.set_accelerations(max_accelerations)
         for angles in waypoints:
             deadline = time.perf_counter() + WAYPOINT_INTERVAL
             while True:
@@ -98,10 +141,15 @@ def stream_targets(arm, waypoints, *, max_velocity, max_acceleration, settle=Tru
         # temporary zero-speed hold must not be overwritten midway by cleanup.
         errors = []
         with timer._lock:
-            for changed, restore, values in (
+            restores = [
                 (changed_velocity, arm.set_velocities, velocities),
                 (changed_acceleration, arm.set_accelerations, accelerations),
-            ):
+            ]
+            if decelerations is not None:
+                restores.append(
+                    (changed_acceleration, arm.set_decelerations, decelerations)
+                )
+            for changed, restore, values in restores:
                 if changed:
                     try:
                         restore(values)

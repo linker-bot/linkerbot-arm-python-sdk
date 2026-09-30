@@ -40,6 +40,19 @@ def test_all_original_signatures(relative, record):
     collect(tree.body)
     for name, signature in record["signatures"].items():
         if (
+            relative == "linkerbot/arm/kinetix/kinetix.py"
+            and name == "ArmKinetix.from_builtin"
+        ):
+            # Extend only the accepted built-in model literal; retain the frozen API.
+            signature = {
+                **signature,
+                "args": signature["args"].replace(
+                    "Literal['a7_lite', 'a7', 'p7']",
+                    "Literal['a7_lite', 'a7', 'p7', 'h75']",
+                ),
+            }
+
+        if (
             relative == "linkerbot/arm/p7/motor_v2.py"
             and name == "MotorV2._build_servo_frame"
         ):

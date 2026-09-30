@@ -5,7 +5,8 @@ class ControlMode(Enum):
     """Arm / joint control mode.
 
     ``PP``
-        Profile Position (trapezoidal profile inside the driver).
+        Profile Position (trapezoidal / S-curve inside the driver).
+        H75: Weiyi 0x06.
     ``MIT``
         Operation-control / MIT impedance mode (``run_mode=0`` on RS00
         private protocol). Host streams ``(p, v, kp, kd, t_ff)`` each
@@ -14,6 +15,7 @@ class ControlMode(Enum):
     ``CSP``
         Cyclic Synchronous Position (``run_mode=5``). Host streams
         ``loc_ref``; speed capped by ``limit_spd`` (``0x7017``).
+        H75: Weiyi ordinary position 0x03, without a drive-side profile.
     """
 
     PP = auto()

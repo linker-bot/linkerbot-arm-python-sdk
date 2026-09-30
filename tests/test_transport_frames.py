@@ -17,6 +17,7 @@ from linkerbot_arm import A7lite, ControlMode
 from linkerbot_arm._transport.can import ManagedCANDispatcher
 from linkerbot_arm.arm.a7.motor import A7Motor
 from linkerbot_arm.arm.a7_lite.motor import A7liteMotor
+from linkerbot_arm.arm.h75.motor import H75Motor
 from linkerbot_arm.arm.p7.motor_v2 import MotorV2
 from linkerbot_arm.comm.can import CanInterface, CANMessageDispatcher
 from linkerbot_arm.exceptions import TimeoutError
@@ -26,12 +27,30 @@ class FakeDispatcher:
     def __init__(self):
         self.sent = deque()
         self.callbacks = []
+        self.enabled_by_id = {}
 
     def subscribe(self, callback):
         self.callbacks.append(callback)
 
     def send(self, message):
         self.sent.append(message)
+        data = bytes(message.data)
+        if len(data) == 2 and data[0] == 0x2A:
+            self.enabled_by_id[message.arbitration_id] = data[1]
+        elif data == b"\x2b":
+            self.feedback(
+                can.Message(
+                    arbitration_id=message.arbitration_id,
+                    is_extended_id=False,
+                    data=bytes(
+                        [0x2B, self.enabled_by_id.get(message.arbitration_id, 0)]
+                    ),
+                )
+            )
+
+    def _send_checked(self, message, *, timeout_s=1.0):
+        # This test backend sends synchronously; production backends await a receipt.
+        self.send(message)
 
     def feedback(self, message):
         for callback in self.callbacks:
@@ -50,9 +69,12 @@ def link(request):
         assert channel.startswith("vcan"), "use an isolated vcan interface"
     with can.Bus(interface=backend, channel=channel) as peer:
         if request.param == "managed":
-            model = {A7Motor: "a7", A7liteMotor: "a7_lite", MotorV2: "p7"}[
-                request.node.callspec.params["cls"]
-            ]
+            model = {
+                A7Motor: "a7",
+                A7liteMotor: "a7_lite",
+                MotorV2: "p7",
+                H75Motor: "h75",
+            }[request.node.callspec.params["cls"]]
             selected = ManagedCANDispatcher(channel, backend, model, "left")
         else:
             selected = CANMessageDispatcher(channel, backend)
