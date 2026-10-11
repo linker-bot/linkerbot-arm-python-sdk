@@ -2,7 +2,7 @@
 
 All four arm models use `CANTransport` by default. Set
 `LINKERBOT_ARM_TRANSPORT=dispatcher` to explicitly use the low-level backend.
-Both backends require the fixed transport source in `requirements/transport.txt`.
+Both backends require the [fixed transport source](requirements/transport.txt).
 Arm calls remain unchanged; failed connections require closing and recreating the arm. See the
 [backend guide](docs/TRANSPORT.md) for installation, recovery and validation scope.
 
@@ -11,16 +11,20 @@ forward/inverse kinematics. Requires Python 3.10+. Install `linkerbot-arm` and i
 
 ## Installation
 
-Install the pinned transport source using the [installation guide](docs/INSTALLATION.md),
-then run from this repository:
+The base SDK requires NumPy >=1.24, SciPy >=1.10, Pydantic 2.x and
+`linkerbot-transport[can]==1.0.0`. Install the pinned transport source using the
+[installation guide](docs/INSTALLATION.md), then run from this repository:
 
 ```bash
 python -m pip install -e '.[kinetix]'
 ```
 
-All four arm constructors require Pinocchio. Use the `kinetix` extra for standalone
-Python environments. ROS2 environments should use compatible system NumPy, SciPy
-and Pinocchio packages; see the [ROS2 guide](docs/ROS2.md).
+All four arm constructors require Pinocchio; the current validation baseline is 4.1.0.
+The `kinetix` extra declares `pin>=4.1.0` for pip dependency installation. SDK kinematics
+are available with the base package when compatible Pinocchio is already present;
+install it with `python -m pip install -e .`.
+ROS2 environments should install the base package and compatible system Pinocchio.
+See the [ROS2 guide](docs/ROS2.md) for the validated Jazzy combination and deployment lock.
 
 ## Quick start
 

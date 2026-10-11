@@ -32,5 +32,6 @@ CAN_INTERFACE=can0 ARM_SIDE=left python -m pytest tests/arm/a7 -m 'hardware and 
 修改打包或 URDF 后，必须在源码目录之外安装 wheel 验证导入和八个模型的加载。
 修改 ROS2 接入后，在安装新 SDK 的环境运行 ROS2 仓库 `tests/`；带 rclpy 的环境会额外运行真实节点测试。
 可运行 `python tools/check_ros2_adapter.py ../linker_arm_ros2` 检查真实 adapter 的调用契约；
-该工具使用测试进程内的导入映射，不能替代实际节点的加载验证。
+该工具直接使用生产 loader 加载 `linkerbot_arm`，不创建旧命名空间别名；
+适配器契约检查不能替代实际节点和设备运行验证。
 发布前记录 Python、NumPy、SciPy、Pinocchio 版本以及真机验收结果，并更新 CHANGELOG。

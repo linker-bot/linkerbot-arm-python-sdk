@@ -1,0 +1,6 @@
+# Verified deployment profile: Ubuntu 24.04 / ROS2 Jazzy / Python 3.12.
+# Use APT ros-jazzy-pinocchio 4.1.0 and eigenpy 3.13.0 with the base SDK.
+# Do not request [kinetix] here: APT Pinocchio has no PyPI "pin" metadata.
+# These versions pin the tested venv; they are not universal ROS requirements.
+numpy==1.26.4
+scipy==1.13.1

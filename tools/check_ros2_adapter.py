@@ -2,9 +2,8 @@
 
 Usage: python tools/check_ros2_adapter.py /path/to/linker_arm_ros2
 
-The process-only aliases bridge the old loader for this test. This is not a
-production compatibility shim or acceptance of the phase-5 loader migration.
-The ROS2 checkout and its tests are read without modification.
+The ROS2 adapter must load linkerbot_arm through its production loader, without
+legacy namespace aliases. The ROS2 checkout and tests are read without modification.
 """
 
 import argparse
@@ -15,7 +14,6 @@ from pathlib import Path
 import pytest
 
 import linkerbot_arm
-import linkerbot_arm.arm
 
 
 def main():
@@ -27,8 +25,6 @@ def main():
     if not test.is_file():
         parser.error(f"ROS2 adapter contract tests not found: {test}")
     sys.path.insert(0, str(repo))
-    sys.modules["linkerbot"] = linkerbot_arm
-    sys.modules["linkerbot.arm"] = linkerbot_arm.arm
     adapter = importlib.import_module("linker_arm_ros2.sdk_adapter")
     assert Path(adapter.__file__).resolve().is_relative_to(repo)
     assert adapter._ARM_CLASSES == {

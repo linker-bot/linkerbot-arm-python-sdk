@@ -8,14 +8,19 @@ Python 3.10+；发行包名为 `linkerbot-arm`，导入名为 `linkerbot_arm`。
 
 ## 安装
 
-按[安装指南](docs/INSTALLATION.md)安装固定的 transport 源码后，在本仓库目录执行：
+SDK 基础依赖为 NumPy >=1.24、SciPy >=1.10、Pydantic 2.x，以及
+`linkerbot-transport[can]==1.0.0`。按[安装指南](docs/INSTALLATION.md)安装
+[固定的 transport 源码](requirements/transport.txt)后，在本仓库目录执行：
 
 ```bash
 python -m pip install -e '.[kinetix]'
 ```
 
-四款机械臂的构造函数均需要 Pinocchio。独立 Python 环境安装 `kinetix` extra；
-ROS2 环境使用系统兼容的 NumPy、SciPy 和 Pinocchio，见 [ROS2 接入](docs/ROS2.md)。
+四款机械臂的构造函数均需要 Pinocchio；当前验证基线为 Pinocchio 4.1.0。
+`kinetix` extra 声明 `pin>=4.1.0`，只负责 pip 安装依赖，不开关 SDK 的运动学功能。
+已有兼容 Pinocchio 时可安装基础包 `python -m pip install -e .`。
+ROS2 Jazzy 的已验证组合和独立部署锁见 [ROS2 接入](docs/ROS2.md)；
+ROS2 环境使用基础包及兼容的系统 Pinocchio。
 
 ## 快速开始
 

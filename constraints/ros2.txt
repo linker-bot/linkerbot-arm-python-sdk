@@ -1,4 +1,6 @@
 # Keep NumPy compatible with ROS2 / Pinocchio binaries built against NumPy 1.x.
 # Applies to the base package only; use ROS-provided Pinocchio, not [kinetix].
+# This is the retained NumPy 1.x / SciPy <1.14 support range, not a ROS-wide rule.
+# For the verified Jazzy deployment, use constraints/ros-jazzy.txt instead.
 numpy>=1.24,<2
 scipy>=1.10,<1.14

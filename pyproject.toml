@@ -17,7 +17,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# ROS2 can provide its own ABI-compatible Pinocchio instead of the PyPI wheels.
+# This extra installs PyPI Pinocchio; it does not enable/disable kinematics.
+# Compatible system/Conda/ROS APT Pinocchio can instead be used with the base SDK.
 kinetix = ["pin>=4.1.0"]
 test = ["pytest>=7.4,<9", "pytest-timeout>=2.3"]
 dev = ["ruff>=0.11", "build>=1.2"]
