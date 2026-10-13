@@ -12,12 +12,21 @@ forward/inverse kinematics. Requires Python 3.10+. Install `linkerbot-arm` and i
 ## Installation
 
 The base SDK requires NumPy >=1.24, SciPy >=1.10, Pydantic 2.x and
-`linkerbot-transport[can]`. Install the current transport source using the
-[installation guide](docs/INSTALLATION.md), then run from this repository:
+`linkerbot-transport[can]`. The source repository is
+[linker-bot/linkerbot-arm-python](https://gitea.linkerhub.work/linker-bot/linkerbot-arm-python),
+with `main` as its default branch. The distribution and import names remain
+`linkerbot-arm` and `linkerbot_arm`. With company Gitea access, run:
 
 ```bash
+git clone --branch main https://gitea.linkerhub.work/linker-bot/linkerbot-arm-python.git
+cd linkerbot-arm-python
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --force-reinstall --no-deps -r requirements/transport.txt
 python -m pip install -e '.[kinetix]'
 ```
+
+See the [installation guide](docs/INSTALLATION.md) for environment configuration.
 
 All four arm constructors require Pinocchio; the current validation baseline is 4.1.0.
 The `kinetix` extra declares `pin>=4.1.0` for pip dependency installation. SDK kinematics

@@ -4,6 +4,20 @@ SDK 需要 Python 3.10+、NumPy 1.24+、SciPy 1.10+、Pydantic 2.x，
 以及 `linkerbot-transport[can]`。A7、A7lite、P7、H75 构造时均需要 Pinocchio。
 这些是通用 SDK 的最低依赖；当前运动学验证基线为 Pinocchio 4.1.0。
 
+## 获取源码
+
+仓库已迁移至 [linker-bot/linkerbot-arm-python](https://gitea.linkerhub.work/linker-bot/linkerbot-arm-python)，
+默认分支为 `main`。以下命令需要公司 Gitea 访问权限；transport 源码清单通过 SSH 获取依赖，
+还需配置相应 SSH 密钥。新建 checkout：
+
+```bash
+git clone --branch main https://gitea.linkerhub.work/linker-bot/linkerbot-arm-python.git
+cd linkerbot-arm-python
+```
+
+已有本地 checkout 可继续使用原目录名，只需将 `origin` 更新为上述地址，并切换、
+同步 `main`。目录改名不影响安装：发行包仍为 `linkerbot-arm`，Python 导入仍为 `linkerbot_arm`。
+
 ## 独立 Python 环境
 
 以下是安装 PyPI Pinocchio 的独立环境路线。在未加载 ROS2 `setup.bash` 的终端中，

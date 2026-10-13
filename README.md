@@ -9,12 +9,21 @@ Python 3.10+；发行包名为 `linkerbot-arm`，导入名为 `linkerbot_arm`。
 ## 安装
 
 SDK 基础依赖为 NumPy >=1.24、SciPy >=1.10、Pydantic 2.x，以及
-`linkerbot-transport[can]`。按[安装指南](docs/INSTALLATION.md)安装
-[transport 最新源码](requirements/transport.txt)后，在本仓库目录执行：
+`linkerbot-transport[can]`。源码仓库为
+[linker-bot/linkerbot-arm-python](https://gitea.linkerhub.work/linker-bot/linkerbot-arm-python)，
+默认分支为 `main`；仓库改名后，发行包仍为 `linkerbot-arm`，导入仍为 `linkerbot_arm`。
+具有公司 Gitea 访问权限时执行：
 
 ```bash
+git clone --branch main https://gitea.linkerhub.work/linker-bot/linkerbot-arm-python.git
+cd linkerbot-arm-python
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --force-reinstall --no-deps -r requirements/transport.txt
 python -m pip install -e '.[kinetix]'
 ```
+
+详细环境配置见[安装指南](docs/INSTALLATION.md)。
 
 四款机械臂的构造函数均需要 Pinocchio；当前验证基线为 Pinocchio 4.1.0。
 `kinetix` extra 声明 `pin>=4.1.0`，只负责 pip 安装依赖，不开关 SDK 的运动学功能。

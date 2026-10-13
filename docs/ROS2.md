@@ -1,8 +1,10 @@
 # ROS2 接入
 
 `linkerbot_arm` 可在 ROS2 的 Python 环境中使用。
-个人 [linker_arm_ros2 fork](https://gitea.linkerhub.work/zhuzhixiang/linker_arm_ros2)
-使用 `linkerbot_arm`，保留原有 PP `_set_angles()` 调用链。部署其他分支时需核对实际
+[linker-bot/linkerbot-arm-ros2](https://gitea.linkerhub.work/linker-bot/linkerbot-arm-ros2)
+的 `main` 分支使用 `linkerbot_arm`，保留原有 PP `_set_angles()` 调用链。
+ROS2 包名仍为 `linker_arm_ros2`；完整安装步骤见该仓库的
+[环境配置](https://gitea.linkerhub.work/linker-bot/linkerbot-arm-ros2/src/branch/main/docs/environment_setup.md)。部署其他分支时需核对实际
 adapter/loader；仍导入 `linkerbot` 的旧适配器需先迁移，不能仅替换 SDK 安装。
 
 ## Python 与运动学依赖
@@ -22,16 +24,17 @@ source /opt/ros/jazzy/setup.bash
 source /path/to/ros-arm-venv/bin/activate
 ```
 
-在该环境中通过 [transport 源码清单](../requirements/transport.txt)安装依赖，
-再安装基础 SDK：
-
-接入个人 ROS2 fork 的生命周期任务时，以该仓库 `requirements/source-versions.txt` 的
-配套 arm/transport 提交为准。SDK checkout 必须来自该清单中的版本，包含
-`constraints/ros-jazzy.txt`；旧提交提供的约束文件不能替代这份部署锁。
+在该环境中使用 ROS2 仓库 `requirements/source-versions.txt` 配置的源码：
+arm 固定到包含生命周期、运动安全及 transport 兼容修复的提交，transport 使用 `main`，
+不固定版本号、tag 或旧提交。SDK checkout 必须与该清单中的 arm 提交一致，
+以使用配套的 `constraints/ros-jazzy.txt`。
 
 ```bash
-python -m pip install --force-reinstall --no-deps -r /path/to/linkerbot-arm/requirements/transport.txt
-python -m pip install -c /path/to/linkerbot-arm/constraints/ros-jazzy.txt -e /path/to/linkerbot-arm
+ARM_SOURCE_COMMIT=$(sed -n 's/^linkerbot-arm @ .*@//p' /path/to/linkerbot-arm-ros2/requirements/source-versions.txt)
+git clone --branch main https://gitea.linkerhub.work/linker-bot/linkerbot-arm-python.git /path/to/linkerbot-arm-python
+git -C /path/to/linkerbot-arm-python checkout "$ARM_SOURCE_COMMIT"
+python -m pip install --force-reinstall -c /path/to/linkerbot-arm-python/constraints/ros-jazzy.txt \
+  -r /path/to/linkerbot-arm-ros2/requirements/source-versions.txt
 ```
 
 基础包使用系统提供的 Pinocchio。APT 包提供 `pinocchio` 模块，但没有 PyPI `pin` 发行元数据，
@@ -93,15 +96,17 @@ NumPy >=2.2.6，与 Jazzy 部署锁没有交集；需要继续使用旧 SDK 时�
 A7lite 软件停止持续锁存，显式 `enable()` 或成功完成 PP `home()` 后才恢复。
 这些行为须使用包含本轮修复的源码，既有发行版或旧 source lock 不会因版本号相同而自动获得修复。
 
-个人 fork 的 loader 优先使用当前 Python 可导入的 `linkerbot_arm`，否则通过
-`LINKERBOT_ARM_SRC` 查找仓库根目录或 `src`，再自动查找并列或工作空间中的 `linkerbot-arm`。
+ROS2 loader 优先使用当前 Python 可导入的 `linkerbot_arm`，否则通过
+`LINKERBOT_ARM_SRC` 查找仓库根目录或 `src`，再自动查找并列或工作空间中的旧目录名 `linkerbot-arm`。
+新目录名 `linkerbot-arm-python` 需先安装到当前环境，或显式设置
+`LINKERBOT_ARM_SRC=/path/to/linkerbot-arm-python/src`。
 未设置新变量时，旧 `LINKERBOT_SDK_SRC` 作为兼容别名保留并输出迁移提示。
 两个变量都只接受含 `linkerbot_arm` 的新 SDK 源码；不再解析旧完整 SDK 的 `linkerbot`
 命名空间，也不将旧源码或已安装的旧包作为回退来源。当前节点会在打开 CAN 前拒绝
 缺少 `home_cancellable` 的新 SDK，见下文。
 优先把所需 SDK 安装到节点实际使用的 Python 环境；源码变量不会覆盖已安装的新 SDK。
 
-完成 [固定源码安装](TRANSPORT.md) 后，A7、A7lite、P7 默认使用 `CANTransport`，启动节点无需
+完成 [源码安装](TRANSPORT.md) 后，A7、A7lite、P7 默认使用 `CANTransport`，启动节点无需
 额外设置环境变量。需要 dispatcher 时，在启动节点的环境设置
 `LINKERBOT_ARM_TRANSPORT=dispatcher`；取消该变量会恢复默认的 `CANTransport`。
 ROS2 构造和控制调用保持原样；后端选择仅影响新建实例，故障后不会自动恢复运动。
@@ -118,13 +123,13 @@ P7 在每个目标准入前检查取消，停止方与正在准入的目标批�
 的帧保持原有顺序，不自动清队列或重放。软件停止仍有 SDK 调用、排队与驱动耗时，不是硬件急停。
 P7 的 `home()` / `move_j()` / `move_p()` 在 `blocking=False` 时仍同步发送整段轨迹，只省略末次等待。
 
-个人 ROS2 fork 已将启动、使能和回零接入后台生命周期任务，回零使用 `home_cancellable`。
+ROS2 包已将启动、使能和回零接入后台生命周期任务，回零使用 `home_cancellable`。
 节点在打开 CAN 前检查该能力；缺少时提示更新配套源码，不退回不可取消回零。
 状态发布和服务在启动任务前建立，任务运行时持续可用；重复普通请求返回 busy，
 流式目标暂不接受。`disable` / `emergency_stop` 取消当前任务并调用 SDK 停止，
 被取消的原请求返回 `success=false`。服务保持 `Trigger` 类型，响应等待操作实际返回。
 停止状态锁存，只有显式使能或回零成功后才恢复流式目标准入；这些软件控制仍受 SDK、
-CAN 排队和驱动耗时影响。安装该 fork 的 `requirements/source-versions.txt` 指定的源码组合。
+CAN 排队和驱动耗时影响。安装 ROS2 仓库 `requirements/source-versions.txt` 指定的源码组合。
 
 ## H75 接入范围
 
