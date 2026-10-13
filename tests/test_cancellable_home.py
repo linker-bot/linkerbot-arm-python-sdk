@@ -11,13 +11,18 @@ from linkerbot_arm.motion_timer import MotionTimer
 
 
 @pytest.fixture(params=[A7, A7lite, P7])
-def arm(request):
+def arm(request, kinetix_module):
+    ArmKinetix = kinetix_module.ArmKinetix
     cls = request.param
     arm = cls.__new__(cls)
     arm._motion_timer = MotionTimer()
     arm._control_modes = None
     arm._motors = [Mock() for _ in range(7)]
-    arm._kx = SimpleNamespace(get_joint_limits=lambda: [(-3.0, 3.0)] * 7)
+    arm._kx = SimpleNamespace(
+        get_joint_limits=lambda: [(-3.0, 3.0)] * 7,
+        _trap_params=ArmKinetix._trap_params,
+        _trap_s=ArmKinetix._trap_s,
+    )
     arm.get_angles = lambda: [0.5] * 7
     arm.get_control_velocities = lambda: [0.5] * 7
     arm.get_control_acceleration = lambda: [1.0] * 7

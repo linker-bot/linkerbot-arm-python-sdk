@@ -95,9 +95,9 @@ class TestEmergencyStopPerMode:
             for mid, reg, val in writes
             if reg == 0x7024
         ]
-        # 7 zeros then 7 restores
-        assert [v for _, _, v in zero_writes[:7]] == pytest.approx([0.0] * 7)
-        assert [v for _, _, v in zero_writes[7:14]] == pytest.approx([1.5] * 7)
+        # The software stop remains latched until an explicit recovery.
+        assert [v for _, _, v in zero_writes] == pytest.approx([0.0] * 7)
+        assert arm._stopped
         assert _mit_frames(dispatcher.sent) == []
         assert not any(reg == 0x7017 for _, reg, _ in writes)
 
@@ -115,8 +115,8 @@ class TestEmergencyStopPerMode:
             for mid, reg, val in writes
             if reg == 0x7017
         ]
-        assert [v for _, _, v in limit_writes[:7]] == pytest.approx([0.0] * 7)
-        assert [v for _, _, v in limit_writes[7:14]] == pytest.approx([2.5] * 7)
+        assert [v for _, _, v in limit_writes] == pytest.approx([0.0] * 7)
+        assert arm._stopped
         assert not any(reg == 0x7024 for _, reg, _ in writes)
         assert _mit_frames(dispatcher.sent) == []
 

@@ -36,6 +36,7 @@ class MotionTimer:
         self._worker_done.set()
         self._worker_ident = None
         self._worker_error = None
+        self._closing = False
         self._event.set()  # not moving initially
 
     def _begin_worker(self):
@@ -60,6 +61,7 @@ class MotionTimer:
         """
         _validate_timeout(duration, name="duration")
         with self._lock:
+            self._require_admission()
             if self._stream_active:
                 raise StateError(
                     "A host trajectory is still planning, streaming or cleaning up"
@@ -143,6 +145,7 @@ class MotionTimer:
         self, duration: Callable[[], float], action: Callable[[], None]
     ) -> None:
         with self._lock:
+            self._require_admission()
             if self.is_moving():
                 raise StateError("Cannot start new motion while arm is moving")
             if self._external_cancel is not None and self._external_cancel.is_set():
@@ -172,6 +175,7 @@ class MotionTimer:
         planning releases busy state only after the planner has unwound.
         """
         with self._lock:
+            self._require_admission()
             if guard is not None:
                 guard()
             if self.is_moving():
@@ -219,6 +223,7 @@ class MotionTimer:
         The stop caller never waits for planning to finish to set cancellation.
         """
         with self._lock:
+            self._require_admission()
             if guard is not None:
                 guard()
             if self.is_moving():
@@ -254,6 +259,10 @@ class MotionTimer:
         finally:
             with self._lock:
                 self._external_cancel = None
+
+    def _require_admission(self):
+        if self._closing and not self._is_worker_thread():
+            raise StateError("Arm connection is closing or closed; new motion is unavailable")
 
 
 class CancellableHomeMixin:

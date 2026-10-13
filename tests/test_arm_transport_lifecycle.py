@@ -149,11 +149,7 @@ def test_constructor_and_normal_close_order(constructed_arm, side, first_id):
     events.clear()
     assert arm.close() is None
     expected_close = [] if cls is A7lite else [("stop_poll", id) for id in ids]
-    assert events == (
-        [("wait_motion",)] + expected_close + [("close_bus",)]
-        if cls is H75
-        else expected_close + [("wait_motion",), ("close_bus",)]
-    )
+    assert events == [("wait_motion",)] + expected_close + [("close_bus",)]
     assert arm._closed is True
     assert not arm._can_dispatcher._recv_thread.is_alive()
     assert not arm._can_dispatcher._send_thread.is_alive()

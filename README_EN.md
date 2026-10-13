@@ -44,6 +44,17 @@ P7 also checks the PTM mode of joints 6 and 7. When necessary it enters Rest,
 writes and saves the Flash mode, then verifies the readback; an existing PTM configuration skips writes.
 Set velocity and acceleration explicitly before moving. See the [P7 reference](docs/zh/src/reference/p7/README.md).
 
+P7 `move_j()` and `move_p()` use host-side joint acceleration/deceleration profiles.
+External `_set_angles()` commands are velocity- and acceleration-limited: the first cycle holds
+feedback positions, and periodic input is required to approach the target. `blocking=False`
+still sends the complete host trajectory synchronously. A7lite software stops remain latched
+until explicit `enable()` or successful PP `home()` recovery; cancellation or failure keeps the stop.
+PP/CSP hold zero speed limits and replace pending targets with cached feedback; MIT holds use
+at least Kp=20 and Kd=1. These commands do not confirm a physical stop.
+`close()` waits for motion parameter restoration before closing CAN and does not disable motors.
+P7 `move_l()` constrains the TCP path and does not guarantee per-joint profile limits near singularities.
+See the [behavior migration notes](docs/MIGRATION.md#运动与停止行为).
+
 H75 supports PP/CSP and brakes on joints 1/2. Use `get_currents()` for amperes;
 torque conversion is unavailable. Check the upstream scaling defaults against your motor and firmware.
 

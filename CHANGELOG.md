@@ -2,6 +2,28 @@
 
 ## 0.6.1 — Unreleased
 
+- Recheck P7 point-waypoint velocity and acceleration against actual admission
+  intervals; defer the same synchronized waypoint after scheduling stalls instead
+  of exceeding the original profile. Keep nominal timing and MoveL paths unchanged.
+- Defer repeated interrupts during cancelled-worker cleanup for A7/A7lite/P7/H75;
+  preserve the first exception and keep CAN open until restoration finishes.
+
+- Keep A7/A7lite/P7 point-pose planning inside motion ownership; stops and
+  disable cancel target admission after IK. Wait for worker cleanup and profile
+  restoration before closing CAN; reject new motion during close and self-close.
+- Latch A7lite software stops until explicit enable or successful PP home.
+  PP/CSP hold zero speed limits and replace pending targets; MIT holds use at
+  least Kp=20 and Kd=1. Failed/cancelled recovery keeps the latch. Profile cleanup
+  cannot resume motion; physical hold behavior still requires hardware validation.
+- Use synchronized triangular/trapezoidal joint profiles for P7 move_j/move_p.
+  Limit external target velocity/acceleration using monotonic time, first-cycle
+  feedback hold and actual elapsed time. Periodic input is required;
+  blocking=False still sends the full host trajectory synchronously. MoveL
+  continues to constrain the TCP path, not every joint near singularities.
+- Validate soft limits atomically and return copies; reject invalid/non-finite
+  linear planning inputs before generating waypoints. Serialize A7 relay creation,
+  filter malformed/non-finite replies and include lock wait in read timeouts.
+
 - Fix six H75 review findings: reserve IK requests through cancellation; await
   lifecycle send completion and read back enable state before brake release;
   skip disabling joints whose brake-lock command fails; exempt emergency holds
@@ -84,8 +106,8 @@
 
 - Add A7lite RS00 private-protocol MIT and CSP modes, per-joint mode selection,
   mixed-mode target streaming and CSP speed limits from the full SDK's #177.
-- Stop each joint using its configured mode: PP/CSP zero their respective speed
-  limits temporarily; MIT commands a hold at the measured position. Mode changes
+- Stop each joint using its configured mode: PP/CSP keep their respective speed
+  limits at zero until explicit recovery; MIT commands a hold at the measured position. Mode changes
   stop every motor before writing the new mode; call `enable()` afterwards.
 - Validate complete angle batches before sending, including non-finite and float32-overflow targets with soft-limit checks disabled.
 - Preserve existing PP signatures, `ControlMode.PP` value, ROS2 `_set_angles`

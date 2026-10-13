@@ -2,6 +2,7 @@
 
 import math
 import threading
+import time
 from collections.abc import Callable
 from typing import Generic, TypeVar, cast
 
@@ -42,14 +43,23 @@ class DataRelay(Generic[T]):
     def request(self, send: Callable[[], object], timeout_s: float) -> T:
         """Register a waiter, send one request, then wait for its response.
 
-        Requests on one relay are serialized so a response cannot complete two
-        concurrent callers. Registering before ``send`` also captures transports
-        that deliver a response synchronously from inside ``send``.
+        Requests on one relay are serialized; lock and reply waits share one
+        monotonic budget. ``send`` must return promptly. Registering before it
+        also captures synchronous replies, including a zero-timeout request.
         """
         if not callable(send):
             raise ValidationError("send must be callable")
         self._validate_timeout(timeout_s)
-        with self._request_lock:
+        deadline = time.monotonic() + timeout_s
+        if not self._request_lock.acquire(timeout=min(timeout_s, threading.TIMEOUT_MAX)):
+            raise TimeoutError(
+                f"Request ownership not available within {timeout_s * 1000:.0f}ms"
+            )
+        try:
+            if timeout_s > 0 and time.monotonic() >= deadline:
+                raise TimeoutError(
+                    f"Request ownership not available within {timeout_s * 1000:.0f}ms"
+                )
             waiter = self._register_waiter()
             send_completed = False
             try:
@@ -58,7 +68,9 @@ class DataRelay(Generic[T]):
             finally:
                 if not send_completed:
                     self._discard_waiter(waiter)
-            return self._wait_for(waiter, timeout_s)
+            return self._wait_for(waiter, max(0.0, deadline - time.monotonic()))
+        finally:
+            self._request_lock.release()
 
     def try_request(self, send: Callable[[], object], notify: Callable[[], None]):
         """Register before send, without blocking a periodic scheduler.
@@ -109,7 +121,7 @@ class DataRelay(Generic[T]):
         timeout_s: float,
     ) -> T:
         event, result_holder = waiter
-        if event.wait(timeout_s):
+        if event.wait(min(timeout_s, threading.TIMEOUT_MAX)):
             if result_holder["data"] is _SENTINEL:
                 raise TimeoutError(f"No data received within {timeout_s * 1000:.0f}ms")
             return cast(T, result_holder["data"])

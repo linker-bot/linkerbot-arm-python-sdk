@@ -1,6 +1,8 @@
 import functools
+import logging
 import math
 import struct
+import threading
 import time
 import warnings
 from typing import Literal
@@ -54,6 +56,8 @@ from linkerbot_arm.motion_timer import CancellableHomeMixin, MotionTimer
 
 from .motor import A7liteMotor
 
+logger = logging.getLogger(__name__)
+
 
 def _validate_register_angle(index: int, angle: float) -> None:
     """Reject invalid float32 targets before any joint in the batch is sent."""
@@ -73,6 +77,28 @@ def _guard_not_moving(method):
         if self.is_moving():
             raise StateError("Cannot start new motion while arm is moving.")
         return method(self, *args, **kwargs)
+
+    return wrapper
+
+
+def _guard_target_admission(method):
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        with self._motion_timer._lock:
+            self._require_target_admission()
+            return method(self, *args, **kwargs)
+
+    return wrapper
+
+
+def _guard_parameters(method):
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        with self._motion_timer._lock:
+            self._require_connection()
+            if self.is_moving() and not self._motion_timer._is_worker_thread():
+                raise StateError("Cannot change profiles during an SDK motion")
+            return method(self, *args, **kwargs)
 
     return wrapper
 
@@ -107,6 +133,10 @@ class A7lite(ArmMotionQueueMixin, CancellableHomeMixin):
             # Per-joint run_mode; None means "not set yet" (enable defaults to all PP).
             self._control_modes: list[ControlMode] | None = None
             self._motion_timer = MotionTimer()
+            self._stopped = False
+            self._stopped_profiles = {"pp": {}, "csp": {}}
+            self._recovering_home = False
+            self._recovery_owner = None
             self._closed: bool = False
             self._check_motors()
             for motor in self._motors:
@@ -205,12 +235,46 @@ class A7lite(ArmMotionQueueMixin, CancellableHomeMixin):
         self._control_modes = list(modes)
 
     def enable(self) -> None:
-        self.reset_error()
-        self.set_control_modes(self._modes_or_pp())
-        for motor in self._motors:
-            motor.enable()
+        with self._motion_timer._lock:
+            self._refresh_home_recovery()
+            if self.is_moving() or getattr(self, "_recovering_home", False):
+                raise StateError("Cannot enable while a motion is still active")
+            self._enable(keep_stopped=False)
 
-        time.sleep(0.1)  # wait 0.1s for motor to report
+    def _enable(self, *, keep_stopped):
+        recovering = getattr(self, "_stopped", False)
+        self._require_connection()
+        try:
+            self.reset_error()
+            self.set_control_modes(self._modes_or_pp())
+            if recovering:
+                # Replace old drive targets before restoring positive speed limits.
+                self._hold_all_joints()
+                profiles = getattr(self, "_stopped_profiles", {"pp": {}, "csp": {}})
+                for kind, maximum in (("pp", MAX_VELOCITY), ("csp", CSP_LIMIT_SPD_MAX)):
+                    if any(
+                        not 0 <= value <= maximum for value in profiles[kind].values()
+                    ):
+                        raise StateError("Stopped velocity profile is invalid")
+                for i, value in profiles["pp"].items():
+                    self._motors[i].set_velocity(value)
+                for i, value in profiles["csp"].items():
+                    self._motors[i].set_limit_spd(value)
+            for motor in self._motors:
+                motor.enable()
+            time.sleep(0.1)
+        except BaseException:
+            if recovering:
+                try:
+                    self.emergency_stop()
+                except BaseException:
+                    logger.exception("Stop recovery cleanup also failed")
+            raise
+        if recovering:
+            self._stopped = keep_stopped
+            if not keep_stopped:
+                self._stopped_profiles = {"pp": {}, "csp": {}}
+                self._recovering_home = False
 
     def disable(self) -> None:
         with self._motion_timer._lock:
@@ -225,68 +289,129 @@ class A7lite(ArmMotionQueueMixin, CancellableHomeMixin):
             motor.reset_error()
 
     def emergency_stop(self) -> None:
-        """Stop each joint with a command valid for its current run_mode.
+        """Latch a software stop until explicit enable or completed home.
 
-        - ``PP``: zero ``vel_max`` (``0x7024``), restore after ~2s.
-        - ``CSP``: zero ``limit_spd`` (``0x7017``), restore after ~2s.
-        - ``MIT``: Type1 hold at the measured angle (``v=0``, ``t_ff=0``).
-
-        Mixed modes (e.g. first-three MIT + last-four PP) stop each joint
-        with the register / frame that actually affects that mode.
+        PP/CSP keep their speed cap at zero and replace the pending position
+        target with cached feedback. MIT sends zero feed-forward with at least
+        the existing hold gains. This requests a hold over CAN; it is not a
+        hardware emergency-stop circuit or feedback-confirmed physical stop.
         """
         with self._motion_timer._lock:
+            self._stopped = True
+            self._recovering_home = False
+            self._recovery_owner = None
+            profiles = getattr(self, "_stopped_profiles", None)
+            if profiles is None:
+                profiles = self._stopped_profiles = {"pp": {}, "csp": {}}
             self._motion_timer.cancel()
             modes = self._modes_or_pp()
-            saved_pp: list[tuple[int, float]] = []
-            saved_csp: list[tuple[int, float]] = []
-
+            errors = []
             for i, (motor, mode) in enumerate(zip(self._motors, modes)):
-                if mode == ControlMode.CSP:
-                    saved_csp.append((i, motor.limit_spd))
-                    motor.set_limit_spd(0.0)
-                elif mode == ControlMode.MIT:
-                    self._hold_mit_joint(motor)
-                else:
-                    saved_pp.append((i, motor.control_velocity.velocity))
-                    motor.set_velocity(0.0)
+                try:
+                    if mode == ControlMode.CSP:
+                        profiles["csp"].setdefault(i, motor.limit_spd)
+                        motor.set_limit_spd(0.0)
+                    elif mode != ControlMode.MIT:
+                        profiles["pp"].setdefault(i, motor.control_velocity.velocity)
+                        motor.set_velocity(0.0)
+                    self._hold_joint(motor, mode)
+                except BaseException as error:
+                    errors.append(error)
+                    logger.error(
+                        "Software stop failed for %s: %s",
+                        describe_motor(motor._id),
+                        error,
+                    )
+                    # A zero-cap or hold failure must not leave this joint on
+                    # its old positive-speed target. Request Rest as a fallback,
+                    # then continue trying the other joints. Neither request is
+                    # proof that the motor physically stopped.
+                    try:
+                        motor.disable()
+                    except BaseException:
+                        logger.exception(
+                            "Stop disable fallback failed for %s",
+                            describe_motor(motor._id),
+                        )
+            if errors:
+                raise errors[0]
 
-            time.sleep(2.0)
+    @staticmethod
+    def _hold_position(motor):
+        try:
+            position = motor.angle.angle
+        except AttributeError as error:
+            raise StateError(
+                "Position feedback is unavailable for a stop hold"
+            ) from error
+        _validate_register_angle(motor._id, position)
+        return position
 
-            for i, vel in saved_pp:
-                self._motors[i].set_velocity(vel)
-            for i, spd in saved_csp:
-                self._motors[i].set_limit_spd(spd)
+    def _hold_joint(self, motor, mode):
+        if mode == ControlMode.MIT:
+            self._hold_mit_joint(motor)
+        else:
+            # Motor-level holds bypass ordinary soft limits and target-age
+            # admission; a measured position outside a configured limit must
+            # not cause an intended stop to be rejected.
+            motor.set_angle(self._hold_position(motor))
+
+    def _hold_all_joints(self):
+        for motor, mode in zip(self._motors, self._modes_or_pp()):
+            self._hold_joint(motor, mode)
 
     def _hold_mit_joint(self, motor: A7liteMotor) -> None:
         """Send a Type1 MIT hold at the joint's current (or last commanded) angle."""
-        if motor.has_reporting_data():
-            position = motor.angle.angle
-        elif hasattr(motor, "_control_angle"):
-            position = motor.control_angle.angle
-        else:
-            position = 0.0
-        kp = motor.mit_kp if motor.mit_kp is not None else MIT_HOLD_KP
-        kd = motor.mit_kd if motor.mit_kd is not None else MIT_HOLD_KD
+        position = self._hold_position(motor)
+        kp = max(motor.mit_kp or 0.0, MIT_HOLD_KP)
+        kd = max(motor.mit_kd or 0.0, MIT_HOLD_KD)
         motor.set_mit(position, 0.0, kp, kd, 0.0)
 
+    def _refresh_home_recovery(self):
+        timer = self._motion_timer
+        if (
+            getattr(self, "_recovering_home", False)
+            and getattr(self, "_home_admitted", False)
+            and not timer.is_moving()
+        ):
+            self._recovering_home = False
+            if not timer._wait_cancelled(0):
+                self._stopped = False
+                self._stopped_profiles = {"pp": {}, "csp": {}}
+
+    def _require_target_admission(self):
+        self._refresh_home_recovery()
+        self._require_connection()
+        if getattr(self, "_stopped", False) and not (
+            self._motion_timer._is_worker_thread()
+            and getattr(self, "_recovery_owner", None) == threading.get_ident()
+        ):
+            raise StateError("A7lite is stopped; enable or home before new targets")
+
+    def _require_connection(self):
+        if getattr(self, "_closed", False) or (
+            getattr(self, "_closing", False)
+            and not self._motion_timer._is_worker_thread()
+        ):
+            raise StateError("A7lite connection is closed or closing")
+
+    def _require_motion_admission(self):
+        self._refresh_home_recovery()
+        self._require_connection()
+        if getattr(self, "_stopped", False) and (
+            getattr(self, "_recovery_owner", None) != threading.get_ident()
+        ):
+            raise StateError("A7lite is stopped; enable or home before new motion")
+
+    def _admit_point_target(self, target, *, check_limits=True):
+        recovering = getattr(self, "_recovery_owner", None) == threading.get_ident()
+        self._set_angles(target, check_limits=check_limits)
+        if recovering:
+            self._home_admitted = True
+
+    @_guard_target_admission
     def _set_angles(self, angles: list[float], *, check_limits: bool = True) -> None:
-        if self._any_mode_is(ControlMode.MIT):
-            raise StateError(
-                "Register angle command is unavailable while any joint is in "
-                "MIT mode; use set_mits() or stream_joint_targets()"
-            )
-        if len(angles) != len(self._motors):
-            raise ValueError(f"Angles count must be 7, got {len(angles)}")
-        for i, angle in enumerate(angles):
-            _validate_register_angle(i, angle)
-        if check_limits:
-            for i, (angle, (lo, hi)) in enumerate(
-                zip(angles, self._kx.get_joint_limits())
-            ):
-                if not (lo <= angle <= hi):
-                    raise ValidationError(
-                        f"Joint {i} angle {angle:.4f} rad out of range [{lo:.4f}, {hi:.4f}]"
-                    )
+        validate_target(self, angles, check_limits=check_limits)
         submit_targets(
             motor._prepare_angle(angle) for motor, angle in zip(self._motors, angles)
         )
@@ -321,6 +446,7 @@ class A7lite(ArmMotionQueueMixin, CancellableHomeMixin):
                 f"Joint {i} MIT torque {t} out of range [{MIT_T_MIN}, {MIT_T_MAX}]"
             )
 
+    @_guard_target_admission
     def set_mits(
         self,
         positions: list[float],
@@ -374,9 +500,10 @@ class A7lite(ArmMotionQueueMixin, CancellableHomeMixin):
                 raise ValueError(f"{name} count must be {n}, got {len(values)}")
 
         if check_limits:
-            for i, (angle, (lo, hi)) in enumerate(
-                zip(positions, self._kx.get_joint_limits())
-            ):
+            limits = self._kx.get_joint_limits()
+            if len(limits) != n:
+                raise StateError("Joint limit count must match the joint count")
+            for i, (angle, (lo, hi)) in enumerate(zip(positions, limits)):
                 if not (lo <= angle <= hi):
                     raise ValidationError(
                         f"Joint {i} angle {angle:.4f} rad out of range "
@@ -395,6 +522,7 @@ class A7lite(ArmMotionQueueMixin, CancellableHomeMixin):
             )
         )
 
+    @_guard_target_admission
     def stream_joint_targets(
         self,
         positions: list[float],
@@ -440,9 +568,10 @@ class A7lite(ArmMotionQueueMixin, CancellableHomeMixin):
                 raise ValueError(f"{name} count must be {n}, got {len(values)}")
 
         if check_limits:
-            for i, (angle, (lo, hi)) in enumerate(
-                zip(positions, self._kx.get_joint_limits())
-            ):
+            limits = self._kx.get_joint_limits()
+            if len(limits) != n:
+                raise StateError("Joint limit count must match the joint count")
+            for i, (angle, (lo, hi)) in enumerate(zip(positions, limits)):
                 if not (lo <= angle <= hi):
                     raise ValidationError(
                         f"Joint {i} angle {angle:.4f} rad out of range "
@@ -494,6 +623,7 @@ class A7lite(ArmMotionQueueMixin, CancellableHomeMixin):
             )
         self._set_angles(angles, check_limits=check_limits)
 
+    @_guard_parameters
     def set_limit_spds(self, limit_spds: list[float]) -> None:
         """Set CSP velocity limits (RS00 ``0x7017``) for all joints, rad/s."""
         if len(limit_spds) != len(self._motors):
@@ -504,13 +634,19 @@ class A7lite(ArmMotionQueueMixin, CancellableHomeMixin):
                     f"Joint {i} CSP limit_spd {spd} out of range "
                     f"[{CSP_LIMIT_SPD_MIN}, {CSP_LIMIT_SPD_MAX}]"
                 )
-        for motor, spd in zip(self._motors, limit_spds):
-            motor.set_limit_spd(spd)
+        for i, (motor, spd) in enumerate(zip(self._motors, limit_spds)):
+            if getattr(self, "_stopped", False) and not getattr(
+                self, "_recovering_home", False
+            ):
+                self._stopped_profiles["csp"][i] = spd
+            else:
+                motor.set_limit_spd(spd)
 
     def get_limit_spds(self) -> list[float]:
         """Return cached CSP velocity limits (rad/s) for all joints."""
         return [motor.limit_spd for motor in self._motors]
 
+    @_guard_parameters
     def set_velocities(self, velocities: list[float]) -> None:
         if len(velocities) != len(self._motors):
             raise ValueError(f"Velocities count must be 7, got {len(velocities)}")
@@ -519,9 +655,19 @@ class A7lite(ArmMotionQueueMixin, CancellableHomeMixin):
                 raise ValidationError(
                     f"Joint {i} velocity {v} out of range [{MIN_VELOCITY}, {MAX_VELOCITY}]"
                 )
-        for motor, velocity in zip(self._motors, velocities):
-            motor.set_velocity(velocity)
+        for i, (motor, velocity, mode) in enumerate(
+            zip(self._motors, velocities, self._modes_or_pp())
+        ):
+            if (
+                getattr(self, "_stopped", False)
+                and not getattr(self, "_recovering_home", False)
+                and mode == ControlMode.PP
+            ):
+                self._stopped_profiles["pp"][i] = velocity
+            else:
+                motor.set_velocity(velocity)
 
+    @_guard_parameters
     def set_accelerations(self, accelerations: list[float]) -> None:
         if len(accelerations) != len(self._motors):
             raise ValueError(f"Accelerations count must be 7, got {len(accelerations)}")
@@ -581,7 +727,54 @@ class A7lite(ArmMotionQueueMixin, CancellableHomeMixin):
         Args:
             blocking: If True, block until motion completes.
         """
-        self.move_j([0.0] * 7, blocking=blocking)
+        with self._motion_timer._lock:
+            recovering = getattr(self, "_stopped", False)
+            if recovering:
+                if self.is_moving():
+                    raise StateError("Cannot recover before motion cleanup completes")
+                if (
+                    self._motion_timer._external_cancel is not None
+                    and self._motion_timer._external_cancel.is_set()
+                ):
+                    return
+                self._recovering_home = True
+                self._home_admitted = False
+                self._recovery_owner = threading.get_ident()
+                try:
+                    self._enable(keep_stopped=True)
+                except BaseException:
+                    self._recovering_home = False
+                    self._recovery_owner = None
+                    raise
+        try:
+            self.move_j([0.0] * 7, blocking=blocking)
+        except BaseException:
+            if recovering:
+                try:
+                    self.emergency_stop()
+                except BaseException:
+                    logger.exception("Home recovery cleanup also failed")
+            raise
+        finally:
+            with self._motion_timer._lock:
+                self._recovery_owner = None
+                cancelled_recovery = (
+                    recovering
+                    and getattr(self, "_recovering_home", False)
+                    and self._motion_timer._wait_cancelled(0)
+                )
+                if cancelled_recovery:
+                    # Restoring a positive drive cap is part of recovery.
+                    # Cancellation must restore the persistent stop as well as
+                    # end the timer wait; never leave a failed recovery runnable.
+                    self.emergency_stop()
+                else:
+                    self._refresh_home_recovery()
+                if recovering and (
+                    not getattr(self, "_home_admitted", False)
+                    or self._motion_timer._wait_cancelled(0)
+                ):
+                    self._recovering_home = False
 
     @_guard_not_moving
     def move_j(
@@ -600,9 +793,11 @@ class A7lite(ArmMotionQueueMixin, CancellableHomeMixin):
             blocking: If True, block until motion completes.
         """
         validate_target(self, target_joints)
-        self._motion_timer._start_with_target(
-            lambda: point_duration(self, target_joints),
-            lambda: self._set_angles(target_joints),
+        self._motion_timer._plan_and_start(
+            lambda: target_joints,
+            lambda target: point_duration(self, target),
+            lambda target: self._admit_point_target(target),
+            guard=self._require_motion_admission,
         )
         if blocking:
             self.wait_motion_done()
@@ -626,15 +821,18 @@ class A7lite(ArmMotionQueueMixin, CancellableHomeMixin):
                 read from motors if None.
             blocking: If True, block until motion completes.
         """
-        if current_angles is None:
-            current_angles = self.get_angles()
-        target_joints = self.inverse_kinematics(
-            target_pose, current_angles=current_angles
-        )
-        validate_target(self, target_joints, check_limits=False)
-        self._motion_timer._start_with_target(
-            lambda: point_duration(self, target_joints),
-            lambda: self._set_angles(target_joints, check_limits=False),
+
+        def plan():
+            angles = self.get_angles() if current_angles is None else current_angles
+            target = self.inverse_kinematics(target_pose, current_angles=angles)
+            validate_target(self, target)
+            return target
+
+        self._motion_timer._plan_and_start(
+            plan,
+            lambda target: point_duration(self, target),
+            lambda target: self._admit_point_target(target, check_limits=False),
+            guard=self._require_motion_admission,
         )
         if blocking:
             self.wait_motion_done()
@@ -686,7 +884,9 @@ class A7lite(ArmMotionQueueMixin, CancellableHomeMixin):
                 f"angular_acceleration {angular_acceleration} out of range (0, {MOVE_L_MAX_ANGULAR_ACCELERATION}]"
             )
 
-        with self._motion_timer._stream_scope() as active:
+        with self._motion_timer._stream_scope(
+            guard=self._require_motion_admission
+        ) as active:
             if not active:
                 return
             if current_angles is not None and current_pose is not None:

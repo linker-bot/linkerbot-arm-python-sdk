@@ -9,7 +9,12 @@ from typing import Literal
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-from linkerbot_arm._transport import arm_dispatcher, close_arm, exit_arm
+from linkerbot_arm._transport import (
+    _finish_cancelled_worker,
+    arm_dispatcher,
+    close_arm,
+    exit_arm,
+)
 from linkerbot_arm._transport.targets import ArmMotionQueueMixin, submit_targets
 from linkerbot_arm.arm.common import ControlMode, Pose, State
 from linkerbot_arm.arm.common._diagnostics import describe_motor
@@ -564,10 +569,9 @@ class H75(ArmMotionQueueMixin, CancellableHomeMixin):
                     self.wait_motion_done()
             except BaseException as error:
                 primary = error
-                timer.cancel()
                 # Cancellation wakes timer waits before streaming cleanup ends.
                 # Keep the bus open until that cleanup has actually run.
-                timer._wait_worker_done()
+                _finish_cancelled_worker(timer)
             finally:
                 self._closed = True
                 try:

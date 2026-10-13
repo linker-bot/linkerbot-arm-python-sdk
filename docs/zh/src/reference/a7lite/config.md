@@ -25,6 +25,10 @@ with A7lite(side="left", interface_name="can0") as arm:
 
 > CSP 模式下请用 `set_limit_spds`，不要依赖 `set_velocities`（后者写的是 PP 的 `vel_max`）。
 
+软件停止锁存期间设置 PP/CSP 速度只更新待恢复配置，`get_control_velocities()` / `get_limit_spds()`
+仍返回当前有效的零速度限制。显式 `enable()` 或 `home()` 恢复时才重新应用保存值。
+运动规划、发送和清理期间，其他线程不能修改速度或加速度。
+
 ## PID 参数设置
 
 设置 7 个关节的 PID 参数。

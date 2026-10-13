@@ -12,6 +12,7 @@ from scipy.spatial.transform import Rotation as R
 from scipy.spatial.transform import Slerp
 
 from linkerbot_arm.arm.common import Pose, WayPoint
+from linkerbot_arm.exceptions import ValidationError
 
 
 class IKResult(BaseModel):
@@ -88,19 +89,25 @@ class ArmKinetix:
         ]
 
     def set_joint_limits(self, limits: list[tuple[float, float]]) -> None:
-        if len(limits) != len(self._joint_limits):
+        if len(limits) != self._model.nq:
             raise ValueError(
-                f"Expected {len(self._joint_limits)} limits, got {len(limits)}"
+                f"Expected {self._model.nq} limits, got {len(limits)}"
             )
-        for i, (lower, upper) in enumerate(limits):
-            if not (lower <= upper):
+        validated = []
+        for lower, upper in limits:
+            try:
+                valid = not (math.isnan(lower) or math.isnan(upper)) and lower <= upper
+            except (TypeError, ValueError, OverflowError) as error:
+                raise ValueError("Joint limits must be real numeric bounds") from error
+            if not valid:
                 raise ValueError(
                     f"Lower limit {lower} must be less than upper limit {upper}"
                 )
-            self._joint_limits[i] = (lower, upper)
+            validated.append((lower, upper))
+        self._joint_limits = validated
 
     def get_joint_limits(self) -> list[tuple[float, float]]:
-        return self._joint_limits
+        return self._joint_limits.copy()
 
     @property
     def side(self) -> Literal["left", "right"] | None:
@@ -541,6 +548,7 @@ class ArmKinetix:
         Each intermediate pose is converted to joint space through IK,
         seeded with the previous solution for fast convergence and
         smooth joint-space motion between consecutive waypoints.
+        Motion parameters must be finite and positive even for zero displacement.
 
         Args:
             current_pose: Starting TCP pose.
@@ -558,11 +566,35 @@ class ArmKinetix:
             for each time step, ending exactly at *target_pose*.
 
         Raises:
+            ValidationError: If poses or motion parameters are invalid.
             RuntimeError: If IK fails for any intermediate waypoint.
         """
+        for name, value in (
+            ("waypoint_interval", waypoint_interval),
+            ("max_velocity", max_velocity),
+            ("acceleration", acceleration),
+            ("max_angular_velocity", max_angular_velocity),
+            ("angular_acceleration", angular_acceleration),
+        ):
+            try:
+                valid = not isinstance(value, bool) and math.isfinite(value) and value > 0
+            except (TypeError, ValueError, OverflowError) as error:
+                raise ValidationError(f"{name} must be finite and positive") from error
+            if not valid:
+                raise ValidationError(f"{name} must be finite and positive")
+        for name, pose in (("current_pose", current_pose), ("target_pose", target_pose)):
+            try:
+                valid = all(math.isfinite(value) for value in pose.to_list())
+            except (TypeError, ValueError, OverflowError) as error:
+                raise ValidationError(f"{name} components must be finite") from error
+            if not valid:
+                raise ValidationError(f"{name} components must be finite")
+
         start_pos = np.array([current_pose.x, current_pose.y, current_pose.z])
         end_pos = np.array([target_pose.x, target_pose.y, target_pose.z])
         loc_diff = float(np.linalg.norm(end_pos - start_pos))  # position difference (m)
+        if not math.isfinite(loc_diff):
+            raise ValidationError("Cartesian motion distance must be finite")
 
         start_rot = R.from_euler(
             "zyx", [current_pose.rz, current_pose.ry, current_pose.rx]
@@ -585,6 +617,8 @@ class ArmKinetix:
             rot_diff, max_angular_velocity, angular_acceleration
         )
 
+        if not (math.isfinite(T_pos) and math.isfinite(T_rot)):
+            raise ValidationError("Cartesian motion duration must be finite")
         T = max(T_pos, T_rot)  # slower axis dictates total time
         if T < 1e-12:
             yield WayPoint(pose=target_pose, duration=0.0, angles=list(current_angles))
@@ -600,7 +634,10 @@ class ArmKinetix:
         t = 0.0
 
         while True:
-            t += waypoint_interval
+            next_t = t + waypoint_interval
+            if next_t <= t:
+                raise ValidationError("waypoint_interval is too small to advance planning time")
+            t = next_t
             if t >= T:
                 break
 

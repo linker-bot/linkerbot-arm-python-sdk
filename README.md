@@ -39,6 +39,11 @@ with A7(side="left", interface_name="can0") as arm:
 P7 还会检查第 6、7 关节的 PTM 控制模式，必要时进入 Rest 并写入、保存 Flash；
 模式已正确时跳过写入。运动前须显式设置速度和加速度，详见 [P7 API](docs/zh/src/reference/p7/README.md)。
 
+P7 的 `move_j()` / `move_p()` 使用主机关节加减速轨迹；外部 `_set_angles()` 自动限速、限加速度，
+首次调用保持反馈位置，需要持续周期输入才能趋向目标。`blocking=False` 仍同步发送整段轨迹。
+A7lite 软件停止持续锁存，显式 `enable()` 或成功完成 PP `home()` 后才恢复。
+`close()` 等待运动参数恢复后关闭 CAN，不自动失能。具体兼容变化见[迁移说明](docs/MIGRATION.md#运动与停止行为)。
+
 H75 支持 PP/CSP 与前两关节抱闸，电流通过 `get_currents()` 返回，扭矩暂不可用。
 默认缩放参数沿用上游已测试分支，使用前应核对型号与固件。
 

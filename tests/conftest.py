@@ -1,14 +1,19 @@
 """Shared fixtures and interactive test framework for arm tests."""
 
+import importlib.util
 import json
 import os
+import sys
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
+
+import linkerbot_arm
 
 
 @dataclass
@@ -191,3 +196,17 @@ class InteractiveSession:
 def interactive_session(request) -> InteractiveSession:
     """Create interactive test session for human verification."""
     return InteractiveSession(test_name=request.node.name)
+
+
+@pytest.fixture
+def kinetix_module(monkeypatch):
+    # These entry points do not construct a Pinocchio model or call its solvers.
+    # Load an isolated copy so the minimum-dependency profile can exercise them
+    # without caching a fake Pinocchio in the SDK's public module.
+    monkeypatch.setitem(sys.modules, "pinocchio", SimpleNamespace(Model=object))
+    path = Path(linkerbot_arm.__file__).parent / "arm" / "kinetix" / "kinetix.py"
+    spec = importlib.util.spec_from_file_location("_kinetix_boundary_under_test", path)
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, spec.name, module)
+    spec.loader.exec_module(module)
+    return module

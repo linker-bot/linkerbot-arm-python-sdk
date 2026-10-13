@@ -215,6 +215,7 @@ class TestStreamJointTargetsBatchValidate:
         arm = A7lite.__new__(A7lite)
         arm._motors = motors
         arm._control_modes = list(modes)
+        arm._motion_timer = MotionTimer()
         return arm, dispatcher
 
     def test_invalid_later_mit_sends_nothing_mixed_pp(self) -> None:

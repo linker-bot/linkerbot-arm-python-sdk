@@ -164,19 +164,17 @@ class A7(ArmMotionQueueMixin, CancellableHomeMixin):
                     f.result()
 
     def _set_angles(self, angles: list[float], *, check_limits: bool = True) -> None:
-        if len(angles) != len(self._motors):
-            raise ValueError(f"Angles count must be {NUM_JOINTS}, got {len(angles)}")
-        if check_limits:
-            for i, (angle, (lo, hi)) in enumerate(
-                zip(angles, self._kx.get_joint_limits())
+        with self._motion_timer._lock:
+            if getattr(self, "_closed", False) or (
+                getattr(self, "_closing", False)
+                and not self._motion_timer._is_worker_thread()
             ):
-                if not (lo <= angle <= hi):
-                    raise ValidationError(
-                        f"Joint {i} angle {angle:.4f} rad out of range [{lo:.4f}, {hi:.4f}]"
-                    )
-        submit_targets(
-            motor._prepare_angle(angle) for motor, angle in zip(self._motors, angles)
-        )
+                raise StateError("A7 connection is closed or closing")
+            validate_target(self, angles, check_limits=check_limits)
+            submit_targets(
+                motor._prepare_angle(angle)
+                for motor, angle in zip(self._motors, angles)
+            )
 
     def set_velocities(self, velocities: list[float]) -> None:
         if len(velocities) != len(self._motors):
@@ -269,15 +267,16 @@ class A7(ArmMotionQueueMixin, CancellableHomeMixin):
         current_angles: list[float] | None = None,
         blocking: bool = True,
     ) -> None:
-        if current_angles is None:
-            current_angles = self.get_angles()
-        target_joints = self.inverse_kinematics(
-            target_pose, current_angles=current_angles
-        )
-        validate_target(self, target_joints, check_limits=False)
-        self._motion_timer._start_with_target(
-            lambda: point_duration(self, target_joints),
-            lambda: self._set_angles(target_joints, check_limits=False),
+        def plan():
+            angles = self.get_angles() if current_angles is None else current_angles
+            target = self.inverse_kinematics(target_pose, current_angles=angles)
+            validate_target(self, target)
+            return target
+
+        self._motion_timer._plan_and_start(
+            plan,
+            lambda target: point_duration(self, target),
+            lambda target: self._set_angles(target, check_limits=False),
         )
         if blocking:
             self.wait_motion_done()

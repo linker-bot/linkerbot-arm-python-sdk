@@ -31,12 +31,13 @@ from linkerbot_arm.arm.common import ControlMode, Pose, State
 from linkerbot_arm.arm.common._diagnostics import describe_motor
 from linkerbot_arm.arm.common._discovery import check_motors
 from linkerbot_arm.arm.common._motion import (
+    _point_target_interval,
     joint_duration,
-    point_duration,
     trapezoidal_duration,
     validate_target,
 )
 from linkerbot_arm.arm.common._stream import (
+    _TargetDelay,
     WAYPOINT_INTERVAL,
     plan_linear,
     stream_targets,
@@ -57,6 +58,22 @@ def _guard_not_moving(method):
         if self.is_moving():
             raise StateError("Cannot start new motion while arm is moving.")
         return method(self, *args, **kwargs)
+
+    return wrapper
+
+
+def _guard_configuration(method):
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        with self._motion_timer._lock:
+            self._require_target_connection()
+            owned = self._motion_timer._is_worker_thread()
+            if self.is_moving() and not owned:
+                raise StateError("Cannot change P7 profiles during an SDK motion")
+            result = method(self, *args, **kwargs)
+            if not owned:
+                self._reset_stream_target()
+            return result
 
     return wrapper
 
@@ -112,6 +129,7 @@ class P7(ArmMotionQueueMixin, CancellableHomeMixin):
             )
             self._control_mode: ControlMode | None = None
             self._motion_timer = MotionTimer()
+            self._stream_target_state = None
             self._closed: bool = False
             self._polling: bool = False
             self._check_motors()
@@ -167,7 +185,9 @@ class P7(ArmMotionQueueMixin, CancellableHomeMixin):
             motor.set_control_mode(mode)
         self._control_mode = mode
 
+    @_guard_configuration
     def enable(self) -> None:
+        self._reset_stream_target()
         self.reset_error()
         control_mode = (
             self._control_mode if self._control_mode is not None else ControlMode.PP
@@ -181,6 +201,7 @@ class P7(ArmMotionQueueMixin, CancellableHomeMixin):
     def disable(self) -> None:
         with self._motion_timer._lock:
             self._motion_timer.cancel()
+            self._reset_stream_target()
             for motor in self._motors:
                 motor.disable()
 
@@ -191,6 +212,7 @@ class P7(ArmMotionQueueMixin, CancellableHomeMixin):
     def emergency_stop(self) -> None:
         with self._motion_timer._lock:
             self._motion_timer.cancel()
+            self._reset_stream_target()
             # Use cached ``motor.angle`` (refreshed by each motor's own polling
             # or feedback path) rather than per-motor _read_register_float, which
             # only A7Motor supports. Setting the current angle as the target
@@ -199,20 +221,101 @@ class P7(ArmMotionQueueMixin, CancellableHomeMixin):
                 motor.set_angle(motor.angle.angle)
 
     def _set_angles(self, angles: list[float], *, check_limits: bool = True) -> None:
-        if len(angles) != len(self._motors):
-            raise ValueError(f"Angles count must be {NUM_JOINTS}, got {len(angles)}")
-        if check_limits:
-            for i, (angle, (lo, hi)) in enumerate(
-                zip(angles, self._kx.get_joint_limits())
-            ):
-                if not (lo <= angle <= hi):
-                    raise ValidationError(
-                        f"Joint {i} angle {angle:.4f} rad out of range [{lo:.4f}, {hi:.4f}]"
-                    )
-        submit_targets(
-            motor._prepare_angle(angle) for motor, angle in zip(self._motors, angles)
-        )
+        """Admit one FIFO batch; external targets follow configured joint limits.
 
+        The first external cycle seeds from measured positions without moving.
+        Later cycles bound target velocity and acceleration using actual elapsed
+        monotonic time and admit only one batch per call. This bounds the
+        commanded trajectory, not measured motor velocity or physical arrival.
+        Owned point trajectories preserve their planned waypoints and defer any
+        admission that would exceed the captured profile at the actual interval.
+        MoveL preserves its Cartesian path without this joint-space timing check.
+        Rejected batches never advance the accepted state.
+        """
+        with self._motion_timer._lock:
+            self._require_target_connection()
+            validate_target(self, angles, check_limits=check_limits)
+            owned = self._motion_timer._is_worker_thread()
+            if self.is_moving() and not owned:
+                raise StateError("Cannot stream external targets during an SDK motion")
+            profile = getattr(self, "_point_target_profile", None) if owned else None
+            if profile is not None:
+                previous = self._stream_target_state
+                now = time.perf_counter()
+                elapsed = max(0.0, now - previous[2])
+                interval = _point_target_interval(
+                    previous[0], angles, previous[1], *profile, elapsed
+                )
+                if elapsed == 0 or interval > elapsed:
+                    raise _TargetDelay(max(interval - elapsed, math.ulp(now)))
+                state = (
+                    list(angles),
+                    [(goal - start) / elapsed for start, goal in zip(previous[0], angles)],
+                    now,
+                )
+            else:
+                state = None if owned else self._limit_stream_target(angles)
+            accepted = angles if owned else state[0]
+            validate_target(self, accepted, check_limits=check_limits)
+            submit_targets(
+                motor._prepare_angle(angle)
+                for motor, angle in zip(self._motors, accepted)
+            )
+            self._stream_target_state = state
+
+    def _require_target_connection(self) -> None:
+        if getattr(self, "_closed", False) or (
+            getattr(self, "_closing", False)
+            and not self._motion_timer._is_worker_thread()
+        ):
+            raise StateError("P7 connection is closed or closing")
+
+    def _reset_stream_target(self) -> None:
+        self._stream_target_state = None
+
+    def _limit_stream_target(self, target):
+        now = time.monotonic()
+        previous = getattr(self, "_stream_target_state", None)
+        positions = self.get_angles() if previous is None else previous[0]
+        speeds = self.get_control_velocities()
+        accelerations = self.get_control_acceleration()
+        # Validate feedback/counts and reject unusable limits before admission.
+        self._move_duration(positions, target, speeds, accelerations)
+        if previous is None:
+            return (list(positions), [0.0] * NUM_JOINTS, now)
+        elapsed = max(0.0, now - previous[2])
+        if elapsed == 0:
+            return (list(positions), list(previous[1]), previous[2])
+        dt = elapsed
+        limited, velocities = [], []
+        for position, velocity, goal, speed, acceleration in zip(
+            positions, previous[1], target, speeds, accelerations
+        ):
+            error = goal - position
+            if error == 0 and velocity == 0:
+                limited.append(position)
+                velocities.append(0.0)
+                continue
+            if not math.isfinite(acceleration) or acceleration <= 0:
+                raise StateError("Streaming motion requires positive acceleration")
+            # Reserve a deceleration step near the target instead of endlessly
+            # oscillating across it. A target reversal still brakes gradually.
+            braking_speed = (
+                math.sqrt((acceleration * dt) ** 2 + 2 * acceleration * abs(error))
+                - acceleration * dt
+            )
+            desired = math.copysign(min(speed, braking_speed, abs(error) / dt), error)
+            change = acceleration * dt
+            next_velocity = max(velocity - change, min(velocity + change, desired))
+            delta = next_velocity * dt
+            next_position = position + delta
+            limited.append(next_position)
+            # Derive both this velocity and the next cycle's acceleration from
+            # the same accepted position/time samples, including long pauses.
+            velocities.append((next_position - position) / elapsed)
+        return (limited, velocities, now)
+
+    @_guard_configuration
     def set_velocities(self, velocities: list[float]) -> None:
         if len(velocities) != len(self._motors):
             raise ValueError(
@@ -226,6 +329,7 @@ class P7(ArmMotionQueueMixin, CancellableHomeMixin):
         for motor, velocity in zip(self._motors, velocities):
             motor.set_velocity(velocity)
 
+    @_guard_configuration
     def set_accelerations(self, accelerations: list[float]) -> None:
         if len(accelerations) != len(self._motors):
             raise ValueError(
@@ -293,34 +397,64 @@ class P7(ArmMotionQueueMixin, CancellableHomeMixin):
         with self._motion_timer._stream_scope() as active:
             if not active:
                 return
-            validate_target(self, target_joints)
-            try:
-                start_angles = self.get_angles()
-                duration = self._move_duration(
-                    start_angles,
-                    target_joints,
-                    self.get_control_velocities(),
-                    self.get_control_acceleration(),
-                )
-            except AttributeError as error:
-                raise StateError(
-                    "Motion feedback or control parameters are unavailable; "
-                    "read initial state and set_velocities()/set_accelerations() before moving"
-                ) from error
-            n_steps = max(1, math.ceil(duration / WAYPOINT_INTERVAL))
-            start_arr = np.array(start_angles)
-            delta = np.array(target_joints) - start_arr
-            waypoints = (
-                (start_arr + delta * (step / n_steps)).tolist()
-                for step in range(1, n_steps + 1)
+            self._execute_joint_target(target_joints, blocking=blocking)
+
+    def _execute_joint_target(self, target_joints, *, blocking=True):
+        """Execute in an already owned stream scope (also used after IK)."""
+        validate_target(self, target_joints)
+        try:
+            start = self.get_angles()
+            speeds = self.get_control_velocities()
+            accelerations = self.get_control_acceleration()
+            duration = self._move_duration(start, target_joints, speeds, accelerations)
+        except AttributeError as error:
+            raise StateError(
+                "Motion feedback or control parameters are unavailable"
+            ) from error
+        if self._motion_timer._wait_cancelled(0):
+            return
+        # Each joint's original trapezoid is slowed to the longest duration;
+        # this lowers both velocity and acceleration while synchronizing arrival.
+        profiles = [
+            self._kx._trap_params(abs(goal - position), speed, acceleration)
+            for position, goal, speed, acceleration in zip(
+                start, target_joints, speeds, accelerations
             )
+        ]
+        steps = max(1, math.ceil(duration / WAYPOINT_INTERVAL))
+
+        def waypoints():
+            for step in range(1, steps + 1):
+                t = min(step * WAYPOINT_INTERVAL, duration)
+                yield [
+                    goal
+                    if duration == 0
+                    else position
+                    + (goal - position)
+                    * self._kx._trap_s(
+                        t * profile[3] / duration,
+                        profile[0],
+                        profile[1],
+                        profile[2],
+                        acceleration,
+                        abs(goal - position),
+                    )
+                    for position, goal, acceleration, profile in zip(
+                        start, target_joints, accelerations, profiles
+                    )
+                ]
+
+        try:
             stream_targets(
                 self,
-                waypoints,
+                waypoints(),
                 max_velocity=MAX_VELOCITY,
                 max_acceleration=MAX_ACCELERATION,
                 settle=blocking,
+                joint_profile=(start, speeds, accelerations),
             )
+        finally:
+            self._reset_stream_target()
 
     @_guard_not_moving
     def move_p(
@@ -330,18 +464,13 @@ class P7(ArmMotionQueueMixin, CancellableHomeMixin):
         current_angles: list[float] | None = None,
         blocking: bool = True,
     ) -> None:
-        if current_angles is None:
-            current_angles = self.get_angles()
-        target_joints = self.inverse_kinematics(
-            target_pose, current_angles=current_angles
-        )
-        validate_target(self, target_joints, check_limits=False)
-        self._motion_timer._start_with_target(
-            lambda: point_duration(self, target_joints),
-            lambda: self._set_angles(target_joints, check_limits=False),
-        )
-        if blocking:
-            self.wait_motion_done()
+        with self._motion_timer._stream_scope() as active:
+            if not active:
+                return
+            angles = self.get_angles() if current_angles is None else current_angles
+            target = self.inverse_kinematics(target_pose, current_angles=angles)
+            if not self._motion_timer._wait_cancelled(0):
+                self._execute_joint_target(target, blocking=blocking)
 
     @_guard_not_moving
     def move_l(

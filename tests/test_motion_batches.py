@@ -15,9 +15,10 @@ from linkerbot_arm._transport.targets import TargetQueueMixin
 from linkerbot_arm.arm.a7.motor import A7Motor
 from linkerbot_arm.arm.a7_lite.motor import A7liteMotor
 from linkerbot_arm.arm.common import ControlMode
-from linkerbot_arm.arm.common.model import AngleState
+from linkerbot_arm.arm.common.model import AccelerationState, AngleState, VelocityState
 from linkerbot_arm.arm.p7.motor_v2 import MotorV2
 from linkerbot_arm.comm.can import CANMessageDispatcher
+from linkerbot_arm.motion_timer import MotionTimer
 
 
 class QueuedDispatcher(TargetQueueMixin):
@@ -49,12 +50,16 @@ class QueuedDispatcher(TargetQueueMixin):
 def make_arm(cls, dispatcher):
     arm = cls.__new__(cls)
     arm._can_dispatcher = dispatcher
+    arm._motion_timer = MotionTimer()
     types = [A7liteMotor if cls is A7lite else A7Motor] * 7
     if cls is P7:
         types[5:] = [MotorV2, MotorV2]
     arm._motors = [motor_cls(51 + i, dispatcher) for i, motor_cls in enumerate(types)]
     for motor in arm._motors:
         motor._control_angle = AngleState(angle=0, timestamp=0)
+        motor._angle = AngleState(angle=0, timestamp=0)
+        motor._control_velocity = VelocityState(velocity=0.5, timestamp=0)
+        motor._control_acceleration = AccelerationState(acceleration=1.0, timestamp=0)
     arm._kx = SimpleNamespace(get_joint_limits=lambda: [(-2, 2)] * 7)
     if cls is A7lite:
         arm._control_modes = None
@@ -107,7 +112,8 @@ def test_seven_joint_capacity_rejection_changes_no_targets(cls, mode):
         assert all(getattr(m, "_mit_kp", None) is None for m in arm._motors)
         dispatcher._tx.drain()
         command(arm, mode, values)
-        assert [m.control_angle.angle for m in arm._motors] == values
+        expected = [0.0] * 7 if cls is P7 else values
+        assert [m.control_angle.angle for m in arm._motors] == expected
         assert arm.get_motion_health().queue.pending_fifo == 7
         dispatcher._tx.drain()
         health = arm.get_motion_health()
@@ -150,7 +156,8 @@ def test_age_rejects_new_groups_and_expires_unstarted_groups(monkeypatch, cls, m
         now[0] += 0.1
         with pytest.raises(TimeoutError):
             command(arm, mode, [0.2] * 7)
-        assert [m.control_angle.angle for m in arm._motors] == [0.1] * 7
+        expected = [0.0] * 7 if cls is P7 else [0.1] * 7
+        assert [m.control_angle.angle for m in arm._motors] == expected
         dispatcher._tx.drain()
         health = arm.get_motion_health()
         assert dispatcher.sent == []
@@ -176,6 +183,7 @@ def test_p7_heartbeat_is_ordered_with_concurrent_targets():
     arm = make_arm(P7, dispatcher)
     try:
         arm._set_angles([0.1] * 7)
+        first_target = arm._motors[5].control_angle.angle
         arm._motors[5]._heartbeat_once(None)  # still pending: skip
         assert dispatcher._tx.get_health().pending_fifo == 7
         dispatcher._tx.drain()
@@ -186,7 +194,7 @@ def test_p7_heartbeat_is_ordered_with_concurrent_targets():
         dispatcher._tx.drain()
         assert len(dispatcher.sent) == 15
         assert bytes(dispatcher.sent[7].data) == arm._motors[5]._build_ptm_frame(
-            0.1, 0
+            first_target, 0
         )
     finally:
         dispatcher._tx.close()

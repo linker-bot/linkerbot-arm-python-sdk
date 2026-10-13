@@ -13,7 +13,8 @@ from linkerbot_arm.motion_timer import MotionTimer
 
 
 @pytest.fixture(params=[A7, A7lite, P7])
-def rig(request, monkeypatch):
+def rig(request, monkeypatch, kinetix_module):
+    ArmKinetix = kinetix_module.ArmKinetix
     arm = request.param.__new__(request.param)
     arm._motors = [Mock() for _ in range(7)]
     arm._control_modes = None
@@ -39,6 +40,8 @@ def rig(request, monkeypatch):
         get_joint_limits=lambda: [(-3, 3)] * 7,
         forward_kinematics=lambda angles: zero,
         plan_move_l=plan,
+        _trap_params=ArmKinetix._trap_params,
+        _trap_s=ArmKinetix._trap_s,
     )
     arm.get_angles = lambda: [0.0] * 7
     arm.get_control_velocities = lambda: [0.5] * 7
@@ -229,7 +232,9 @@ def test_p7_move_j_uses_same_no_catchup_stream_and_actual_completion(rig, blocki
     rig.arm.move_j([0.3] * 7, blocking=blocking)
     targets = [e for e in rig.events if e[0] == "target"]
     assert [e[1] for e in targets] == pytest.approx([0.01, 0.06, 0.11])
-    assert [e[2][0] for e in targets] == pytest.approx([0.1, 0.2, 0.3])
+    # Mocked total time tests scheduling only; the positions now follow the
+    # actual acceleration/cruise/deceleration progress instead of linear steps.
+    assert [e[2][0] for e in targets] == pytest.approx([0.0968, 0.2758, 0.3])
     assert rig.clock[0] == pytest.approx(0.16 if blocking else 0.15)
     assert not rig.arm.is_moving()
 
@@ -282,10 +287,24 @@ def test_cleanup_cannot_override_lite_emergency_zero_speed_hold(rig, monkeypatch
             return True
         return rig.wait(duration)
 
-    def hold(duration):
-        assert duration == 2.0
-        hold_started.set()
-        assert release_hold.wait(1)
+    for i, motor in enumerate(rig.arm._motors):
+        motor._id = 61 + i
+        motor.angle = SimpleNamespace(angle=0.0)
+        motor.control_velocity = SimpleNamespace(velocity=0.5)
+
+        def configure(value, motor=motor, i=i):
+            motor.control_velocity.velocity = value
+            if value == 0 and i == 0:
+                hold_started.set()
+                assert release_hold.wait(1)
+
+        motor.set_velocity.side_effect = configure
+
+    # Exercise the production setter, so finally restoration is staged while
+    # stopped rather than accidentally overwriting the drive's persistent zero.
+    rig.arm.set_velocities = Mock(
+        wraps=A7lite.set_velocities.__get__(rig.arm, A7lite)
+    )
 
     def run(operation):
         try:
@@ -295,7 +314,6 @@ def test_cleanup_cannot_override_lite_emergency_zero_speed_hold(rig, monkeypatch
 
     rig.arm._set_angles.side_effect = send
     monkeypatch.setattr(rig.arm._motion_timer, "_wait_cancelled", wait)
-    monkeypatch.setattr(_stream.time, "sleep", hold)
     moving = threading.Thread(target=run, args=(lambda: rig.arm.move_l(rig.target),))
     stopping = threading.Thread(target=run, args=(rig.arm.emergency_stop,))
     moving.start()
@@ -315,6 +333,8 @@ def test_cleanup_cannot_override_lite_emergency_zero_speed_hold(rig, monkeypatch
     assert not errors and not moving.is_alive() and not stopping.is_alive()
     rig.arm.set_velocities.assert_called_with([0.5] * 7)
     rig.arm.set_accelerations.assert_called_with([1.0] * 7)
+    assert [m.control_velocity.velocity for m in rig.arm._motors] == [0.0] * 7
+    assert list(rig.arm._stopped_profiles["pp"].values()) == [0.5] * 7
     assert not rig.arm.is_moving()
 
 

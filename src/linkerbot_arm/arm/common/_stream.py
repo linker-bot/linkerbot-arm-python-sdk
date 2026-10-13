@@ -11,6 +11,13 @@ logger = logging.getLogger(__name__)
 WAYPOINT_INTERVAL = 0.01
 
 
+class _TargetDelay(Exception):
+    """Retry the same owned waypoint after a cancellable profile delay."""
+
+    def __init__(self, seconds):
+        self.seconds = seconds
+
+
 def plan_linear(arm, current_pose, current_angles, target_pose, **kwargs):
     """Finish and validate the whole plan before modifying drive parameters."""
     waypoints = []
@@ -88,12 +95,15 @@ def stream_targets(
     settle=True,
     min_acceleration=1.0,
     independent_deceleration=False,
+    joint_profile=None,
 ):
     """Execute in an owned MotionTimer._stream_scope; preserve every waypoint.
 
     Wait one interval after each submission completes, including the initial
     configuration. Slow submission/scheduling stretches time instead of sending
     overdue points back-to-back. SDK admission is not physical completion.
+    A joint_profile also checks real admission intervals and can defer the same
+    point without changing its position or waiting while holding the motion lock.
     """
     timer = arm._motion_timer
     if timer._wait_cancelled(0):
@@ -120,6 +130,12 @@ def stream_targets(
                 return
             changed_acceleration = True
             arm.set_accelerations(max_accelerations)
+            if joint_profile is not None:
+                start, speeds, ramps = joint_profile
+                arm._point_target_profile = (speeds, ramps)
+                arm._stream_target_state = (
+                    list(start), [0.0] * len(start), time.perf_counter()
+                )
         for angles in waypoints:
             deadline = time.perf_counter() + WAYPOINT_INTERVAL
             while True:
@@ -127,10 +143,18 @@ def stream_targets(
                     return
                 if time.perf_counter() >= deadline:
                     break
-            if not timer._run_unless_cancelled(
-                lambda: arm._set_angles(angles, check_limits=False)
-            ):
-                return
+            while True:
+                try:
+                    if not timer._run_unless_cancelled(
+                        lambda: arm._set_angles(angles, check_limits=False)
+                    ):
+                        return
+                    break
+                except _TargetDelay as deferred:
+                    # Admission releases the motion lock before waiting, so
+                    # stop/disable can still cancel a delayed point immediately.
+                    if timer._wait_cancelled(deferred.seconds):
+                        return
         if settle:
             timer._wait_cancelled(WAYPOINT_INTERVAL)
     except BaseException as error:
@@ -141,6 +165,8 @@ def stream_targets(
         # temporary zero-speed hold must not be overwritten midway by cleanup.
         errors = []
         with timer._lock:
+            if joint_profile is not None:
+                arm._point_target_profile = None
             restores = [
                 (changed_velocity, arm.set_velocities, velocities),
                 (changed_acceleration, arm.set_accelerations, accelerations),

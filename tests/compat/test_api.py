@@ -16,6 +16,21 @@ import linkerbot_arm
 BASELINE = json.loads(Path(__file__).with_name("upstream_api.json").read_text())
 PACKAGE = Path(linkerbot_arm.__file__).parent
 
+# These exact safety wrappers change admission, not call signatures. Keep the
+# frozen source baseline and verify functools' runtime signature preservation.
+SAFETY_GUARDS = {
+    "linkerbot/arm/a7_lite/a7_lite.py": {
+        "A7lite._set_angles": "_guard_target_admission",
+        "A7lite.set_velocities": "_guard_parameters",
+        "A7lite.set_accelerations": "_guard_parameters",
+    },
+    "linkerbot/arm/p7/p7.py": {
+        "P7.enable": "_guard_configuration",
+        "P7.set_velocities": "_guard_configuration",
+        "P7.set_accelerations": "_guard_configuration",
+    },
+}
+
 
 @pytest.mark.parametrize("relative,record", BASELINE["files"].items())
 def test_all_original_signatures(relative, record):
@@ -39,6 +54,18 @@ def test_all_original_signatures(relative, record):
 
     collect(tree.body)
     for name, signature in record["signatures"].items():
+        guard = SAFETY_GUARDS.get(relative, {}).get(name)
+        if guard:
+            signature = {
+                **signature,
+                "decorators": [guard, *signature["decorators"]],
+            }
+            class_name, method_name = name.split(".")
+            method = getattr(getattr(linkerbot_arm, class_name), method_name)
+            assert hasattr(method, "__wrapped__")
+            assert inspect.signature(method) == inspect.signature(
+                inspect.unwrap(method)
+            )
         if (
             relative == "linkerbot/arm/kinetix/kinetix.py"
             and name == "ArmKinetix.from_builtin"

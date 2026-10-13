@@ -1,4 +1,5 @@
 import logging
+import math
 import struct
 import threading
 import time
@@ -76,6 +77,7 @@ class A7Motor:
 
         # One DataRelay per read command byte
         self._read_relays: dict[int, DataRelay[bytes]] = {}
+        self._read_relays_lock = threading.Lock()
 
         # Polling
         self._poll_threads: list[threading.Thread] = []
@@ -136,21 +138,33 @@ class A7Motor:
         self._dispatcher.send(msg)
 
     def _on_message(self, msg: can.Message) -> None:
-        if msg.arbitration_id != self._id:
-            return
-        if not msg.data:
+        if (
+            msg.arbitration_id != self._id
+            or msg.is_extended_id
+            or msg.is_remote_frame
+            or msg.is_error_frame
+            or msg.is_fd
+            or msg.dlc != len(msg.data)
+            or not 2 <= len(msg.data) <= 8
+        ):
             return
         cmd = msg.data[0]
-        relay = self._read_relays.get(cmd)
+        if cmd not in (InternalSensorType.HANDSHAKE, InternalSensorType.ENABLED):
+            if len(msg.data) < 5:
+                return
+            if not math.isfinite(struct.unpack("<f", msg.data[1:5])[0]):
+                return
+        with self._read_relays_lock:
+            relay = self._read_relays.get(cmd)
         if relay is not None:
             relay.push(bytes(msg.data[1:]))
 
     def _get_relay(self, cmd: int) -> DataRelay[bytes]:
-        relay = self._read_relays.get(cmd)
-        if relay is None:
-            relay = DataRelay()
-            self._read_relays[cmd] = relay
-        return relay
+        with self._read_relays_lock:
+            relay = self._read_relays.get(cmd)
+            if relay is None:
+                relay = self._read_relays[cmd] = DataRelay()
+            return relay
 
     def _read_register(self, cmd: int, timeout_s: float = 1.0) -> bytes:
         relay = self._get_relay(cmd)
