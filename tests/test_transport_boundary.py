@@ -1,4 +1,4 @@
-"""Arm's observable contract over Transport 1.x, without physical hardware."""
+"""Arm's observable transport contract, without physical hardware."""
 
 import builtins
 import pickle

@@ -1,4 +1,4 @@
-"""Compatibility boundary over the low-level Transport 1.x dispatcher.
+"""Compatibility boundary over the low-level transport dispatcher.
 
 Transport owns CAN I/O and the FIFO arbiter. This adapter keeps the arm SDK's
 legacy calls and exception categories with one active transmit worker.

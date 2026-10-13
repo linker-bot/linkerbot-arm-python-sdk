@@ -240,10 +240,18 @@ def test_concurrent_close_waiter_is_notified_when_vendor_close_raises(
     assert len(first_errors) == 1
     assert isinstance(first_errors[0], CANError)
     assert "vendor close crashed" in str(first_errors[0])
-    assert second_errors == []
-    assert lib.CAN_CloseDevice.calls == [(0, 0)]
-    assert len(lib.LibCANbus_Exit.calls) == 1
+    assert len(second_errors) == 1
+    assert isinstance(second_errors[0], CANError)
+    assert lib.CAN_CloseDevice.calls == [(0, 0), (0, 0)]
+    assert len(lib.LibCANbus_Exit.calls) == 0
     assert interface._close_complete_event.is_set()
+    with pytest.raises(CANError):
+        interface.send(CANFDMessage(1, b"x"))
+    lib.CAN_CloseDevice.hook = None
+    interface.close()
+    interface.close()
+    assert len(lib.CAN_CloseDevice.calls) == 3
+    assert len(lib.LibCANbus_Exit.calls) == 1
 
 
 @pytest.mark.parametrize(
@@ -287,8 +295,9 @@ def test_shared_vendor_lifecycle_keeps_transport_close_policy(monkeypatch):
         lib.CAN_CloseDevice.result = -1
         with pytest.raises(CANError):
             interface.close()
-        interface.close()
-        assert len(lib.CAN_CloseDevice.calls) == 1
+        with pytest.raises(CANError):
+            interface.close()
+        assert len(lib.CAN_CloseDevice.calls) == 2
         assert len(lib.LibCANbus_Exit.calls) == 0
         from linkerbot_transport.errors import TransportError
 
@@ -297,7 +306,11 @@ def test_shared_vendor_lifecycle_keeps_transport_close_policy(monkeypatch):
         assert len(lib.LibCANbus_Exit.calls) == 0
         lib.CAN_CloseDevice.result = 0
         other.close()
-        assert len(lib.CAN_CloseDevice.calls) == 3
+        assert len(lib.CAN_CloseDevice.calls) == 4
+        assert len(lib.LibCANbus_Exit.calls) == 0
+        interface.close()
+        interface.close()
+        assert len(lib.CAN_CloseDevice.calls) == 5
         assert len(lib.LibCANbus_Exit.calls) == 1
     finally:
         lib.CAN_CloseDevice.result = 0
@@ -324,7 +337,7 @@ def test_vendor_messages_and_config_keep_arm_identity(monkeypatch):
         interface.close()
 
 
-def test_socketcan_models_errors_and_one_attempt_shutdown(monkeypatch):
+def test_socketcan_models_errors_and_retryable_shutdown(monkeypatch, caplog):
     from unittest.mock import Mock
 
     import can
@@ -340,14 +353,14 @@ def test_socketcan_models_errors_and_one_attempt_shutdown(monkeypatch):
             up=True, fd=True, bitrate=1000000, data_bitrate=5000000
         ),
     )
-    monkeypatch.setattr(transport_socket.can, "Bus", lambda **kw: bus)
+    monkeypatch.setattr(can, "Bus", lambda **kw: bus)
     interface = SocketCANFDBackend("vcan-test")
     bus.recv.side_effect = [
         can.Message(arbitration_id=1, data=b"payload", is_extended_id=True, is_fd=True),
         None,
     ]
     messages = interface.receive()
-    assert messages == [CANFDMessage(1, b"payload", frame_type=4)]
+    assert messages == [CANFDMessage(1, b"payload", frame_type=4, timestamp=0)]
     assert type(messages[0]) is CANFDMessage
     bus.send.side_effect = can.CanError("send failed")
     with pytest.raises(CANError):
@@ -357,6 +370,85 @@ def test_socketcan_models_errors_and_one_attempt_shutdown(monkeypatch):
     bus.shutdown.side_effect = OSError("shutdown failed")
     interface.close()
     interface.close()
-    bus.shutdown.assert_called_once()
+    assert bus.shutdown.call_count == 2
+    assert "close can be retried" in caplog.text
     with pytest.raises(CANError):
         interface.receive()
+    with pytest.raises(CANError):
+        interface.send(messages[0])
+    from linkerbot_transport.canfd.python_can_backend import PythonCANFDBackend
+    from linkerbot_transport.errors import TransportError
+
+    replacement = None
+    try:
+        with pytest.raises(TransportError, match="different settings"):
+            PythonCANFDBackend("vcan-test", "socketcan", bitrate=500000)
+        bus.shutdown.side_effect = None
+        interface.close()
+        interface.close()
+        assert bus.shutdown.call_count == 3
+        replacement = PythonCANFDBackend("vcan-test", "socketcan", bitrate=500000)
+    finally:
+        interface.close()
+        if replacement is not None:
+            replacement.close()
+
+
+def test_vendor_exit_failure_retries_without_reclosing_device(monkeypatch):
+    lib = FakeLibrary()
+    interface = make_interface(monkeypatch, lib)
+    try:
+        lib.LibCANbus_Exit.result = -1
+        with pytest.raises(CANError, match="LibCANbus_Exit"):
+            interface.close()
+        assert len(lib.CAN_CloseDevice.calls) == 1
+        assert len(lib.LibCANbus_Exit.calls) == 1
+        lib.LibCANbus_Exit.result = 0
+        interface.close()
+        interface.close()
+        assert len(lib.CAN_CloseDevice.calls) == 1
+        assert len(lib.LibCANbus_Exit.calls) == 2
+    finally:
+        lib.LibCANbus_Exit.result = 0
+        interface.close()
+
+
+def test_socketcan_deferred_receive_error_preserves_arm_frames(monkeypatch):
+    from unittest.mock import Mock
+
+    import can
+    from linkerbot_transport.canfd import socketcan_backend as transport_socket
+
+    from linkerbot_arm.comm.canfd import SocketCANFDBackend
+
+    bus = Mock()
+    monkeypatch.setattr(can, "Bus", lambda **kw: bus)
+    monkeypatch.setattr(
+        transport_socket,
+        "_read_link_state",
+        lambda channel: transport_socket._LinkState(
+            up=True, fd=True, bitrate=1000000, data_bitrate=5000000
+        ),
+    )
+    interface = SocketCANFDBackend("deferred-frame-test")
+    try:
+        bus.recv.side_effect = [
+            can.Message(
+                arbitration_id=1,
+                data=b"valid",
+                is_extended_id=True,
+                is_fd=True,
+                timestamp=0.125,
+            ),
+            can.CanError("receive failed"),
+            None,
+        ]
+        frames = interface.receive()
+        assert frames == [CANFDMessage(1, b"valid", frame_type=4, timestamp=125000)]
+        assert type(frames[0]) is CANFDMessage
+        with pytest.raises(CANError, match="receive failed"):
+            interface.receive()
+        assert bus.recv.call_count == 2
+        assert interface.receive() == []
+    finally:
+        interface.close()

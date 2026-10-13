@@ -9,8 +9,8 @@ Python 3.10+；发行包名为 `linkerbot-arm`，导入名为 `linkerbot_arm`。
 ## 安装
 
 SDK 基础依赖为 NumPy >=1.24、SciPy >=1.10、Pydantic 2.x，以及
-`linkerbot-transport[can]==1.0.0`。按[安装指南](docs/INSTALLATION.md)安装
-[固定的 transport 源码](requirements/transport.txt)后，在本仓库目录执行：
+`linkerbot-transport[can]`。按[安装指南](docs/INSTALLATION.md)安装
+[transport 最新源码](requirements/transport.txt)后，在本仓库目录执行：
 
 ```bash
 python -m pip install -e '.[kinetix]'

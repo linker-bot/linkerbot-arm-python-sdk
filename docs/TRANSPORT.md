@@ -2,7 +2,7 @@
 
 A7、A7lite、P7、H75 默认使用 `CANTransport` 后端。构造函数及 `enable()`、`_set_angles()`、运动、状态和 `close()` 的调用方式不变；需要低层后端时可显式选择 dispatcher。
 
-## 从固定源码安装
+## 从当前源码安装
 
 在 arm 仓库根目录的独立 Python 环境中执行：
 
@@ -12,7 +12,7 @@ python -m pip install -e '.[kinetix]'
 python -m pip check
 ```
 
-`requirements/transport.txt` 固定提供批次准入和协议路由能力的 transport 源码提交，两个后端都需要安装；`requirements/cantransport.txt` 保留为同一清单的兼容入口。当前发行版本号不能区分这项源码能力，需按固定提交安装。安装命令本身不连接硬件；新建 arm 对象仍按原行为打开通道、检查电机和读取初始状态。
+`requirements/transport.txt` 从 transport 的 `main` 分支安装当前实现，提供批次准入和协议路由能力；两个后端共用该依赖，不再固定版本号或旧提交。`requirements/cantransport.txt` 保留为同一清单的兼容入口。安装命令本身不连接硬件；新建 arm 对象仍按原行为打开通道、检查电机和读取初始状态。
 
 ROS2 环境按 [ROS2 接入](ROS2.md) 使用系统兼容的运动学依赖，安装基础 arm，省略 `kinetix` extra。个人 fork 的 ROS2 节点同样默认使用 `CANTransport`，沿用现有 PP 控制调用；这不增加 ROS2 的 MIT/CSP Topic 或 Service。
 

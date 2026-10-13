@@ -5,7 +5,7 @@ H75 为七自由度机械臂，使用维一 CAN 协议和 IQ24 大端编码。
 
 ## 快速开始
 
-先按[安装指南](../../../../INSTALLATION.md)安装固定 transport 源码与运动学依赖，
+先按[安装指南](../../../../INSTALLATION.md)安装当前 transport 源码与运动学依赖，
 完成 [CAN 配置](../can.md)。H75 使用经典 CAN，波特率为 1 Mbps。
 
 ```python

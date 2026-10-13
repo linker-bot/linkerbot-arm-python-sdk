@@ -1,6 +1,15 @@
 """SocketCAN FD compatibility API; transport owns link setup and frame I/O."""
 
+from __future__ import annotations
+
+import json
+import logging
+import shutil
+import subprocess
+import threading
+
 import can
+from linkerbot_transport.canfd import python_can_backend as _python_backend
 from linkerbot_transport.canfd import socketcan_backend as _backend
 from linkerbot_transport.canfd.socketcan_backend import (
     CANFD_DEFAULT_DATA_BAUD as CANFD_DEFAULT_DATA_BAUD,
@@ -11,21 +20,6 @@ from linkerbot_transport.canfd.socketcan_backend import (
 from linkerbot_transport.canfd.socketcan_backend import (
     DEFAULT_DATA_BITRATE,
     DEFAULT_NOMINAL_BITRATE,
-)
-from linkerbot_transport.canfd.socketcan_backend import (
-    annotations as annotations,
-)
-from linkerbot_transport.canfd.socketcan_backend import (
-    json as json,
-)
-from linkerbot_transport.canfd.socketcan_backend import (
-    shutil as shutil,
-)
-from linkerbot_transport.canfd.socketcan_backend import (
-    subprocess as subprocess,
-)
-from linkerbot_transport.canfd.socketcan_backend import (
-    threading as threading,
 )
 
 from linkerbot_arm.exceptions import CANError as CANError
@@ -38,7 +32,7 @@ from .types import length_to_dlc as length_to_dlc
 
 
 class SocketCANFDBackend(_backend.SocketCANFDBackend):
-    """Preserve arm errors, message types and best-effort shutdown."""
+    """Preserve arm errors, message types and retryable best-effort shutdown."""
 
     def __init__(
         self,
@@ -50,6 +44,8 @@ class SocketCANFDBackend(_backend.SocketCANFDBackend):
         auto_reconfigure: bool = False,
         receive_own_messages: bool = False,
     ) -> None:
+        self._compat_close_lock = threading.Lock()
+        self._compat_closed = False
         with arm_errors():
             super().__init__(
                 channel,
@@ -60,30 +56,32 @@ class SocketCANFDBackend(_backend.SocketCANFDBackend):
                 receive_own_messages=receive_own_messages,
             )
 
-    _frame_flags = adapt_errors(_backend.SocketCANFDBackend._frame_flags)
     _ensure_link_state = adapt_errors(_backend.SocketCANFDBackend._ensure_link_state)
 
     def send(self, message: CANFDMessage, timeout_ms: int = 10) -> None:
+        if self._compat_closed:
+            raise CANError("SocketCAN FD backend is closed")
         with arm_errors():
             super().send(message, timeout_ms)
 
     def receive(self, max_frames: int = 64, timeout_ms: int = 10) -> list[CANFDMessage]:
+        if self._compat_closed:
+            raise CANError("SocketCAN FD backend is closed")
         with arm_errors():
             messages = super().receive(max_frames, timeout_ms)
         return [_arm_message(message) for message in messages]
 
     def close(self) -> None:
-        # Keep the closed flag set throughout shutdown, including failure.
-        # Transport's retry policy would briefly reopen this flag on error.
-        with self._lock:
-            if self._closed:
-                return
-            self._closed = True
+        # Stop arm I/O immediately, but let transport retain a failed handle
+        # and its channel claim until a later close successfully releases them.
+        with self._compat_close_lock:
+            self._compat_closed = True
             try:
-                self._bus.shutdown()
-            except Exception:
-                # Legacy callers do not receive shutdown errors or retry.
-                pass
+                super().close()
+            except Exception as error:
+                logging.getLogger(__name__).warning(
+                    "SocketCAN FD shutdown failed; close can be retried: %s", error
+                )
 
 
 def _arm_message(message) -> CANFDMessage:
@@ -99,7 +97,7 @@ def _arm_message(message) -> CANFDMessage:
 
 def _to_canfd_message(msg: can.Message) -> CANFDMessage:
     with arm_errors():
-        return _arm_message(_backend._to_canfd_message(msg))
+        return _arm_message(_python_backend._to_canfd_message(msg))
 
 
 def __getattr__(name):

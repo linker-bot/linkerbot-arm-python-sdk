@@ -2,7 +2,7 @@
 
 All four arm models use `CANTransport` by default. Set
 `LINKERBOT_ARM_TRANSPORT=dispatcher` to explicitly use the low-level backend.
-Both backends require the [fixed transport source](requirements/transport.txt).
+Both backends require the [current transport source](requirements/transport.txt).
 Arm calls remain unchanged; failed connections require closing and recreating the arm. See the
 [backend guide](docs/TRANSPORT.md) for installation, recovery and validation scope.
 
@@ -12,7 +12,7 @@ forward/inverse kinematics. Requires Python 3.10+. Install `linkerbot-arm` and i
 ## Installation
 
 The base SDK requires NumPy >=1.24, SciPy >=1.10, Pydantic 2.x and
-`linkerbot-transport[can]==1.0.0`. Install the pinned transport source using the
+`linkerbot-transport[can]`. Install the current transport source using the
 [installation guide](docs/INSTALLATION.md), then run from this repository:
 
 ```bash

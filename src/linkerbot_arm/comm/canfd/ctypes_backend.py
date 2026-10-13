@@ -1,8 +1,8 @@
 """Legacy vendor API backed by transport's shared loader and CAN FD I/O.
 
-Only model/exception conversion and the original one-attempt close policy live
-here. Library handles, Init/Exit reference counts, buffers and calls belong to
-transport 1.0.0 and are shared with hand.
+Only model and exception conversion live here. Library handles, Init/Exit
+reference counts, buffers, calls and retryable cleanup belong to transport
+and are shared with hand.
 """
 
 import threading
@@ -84,7 +84,6 @@ class CANFDInterface(_backend.CANFDInterface):
         library_path: str | Path | None = None,
         config: CANFDConfigOptions | None = None,
     ) -> None:
-        self._compat_close_lock = threading.Lock()
         with arm_errors():
             super().__init__(
                 device_index,
@@ -139,21 +138,9 @@ class CANFDInterface(_backend.CANFDInterface):
         )
 
     def close(self) -> None:
-        """Report failure once and release the library reference, as before."""
-        with self._compat_close_lock:
-            try:
-                with arm_errors():
-                    super().close()
-            finally:
-                # Transport retains ownership on failed close to allow retry.
-                # The arm API has always completed cleanup after one attempt.
-                if self._closed_event.is_set():
-                    try:
-                        if self._lifecycle_key is not None:
-                            _backend._lifecycle_release(self._lifecycle_key)
-                            self._lifecycle_key = None
-                    finally:
-                        self._close_succeeded = True
+        """Preserve arm errors while transport retains failed cleanup for retry."""
+        with arm_errors():
+            super().close()
 
 
 def __getattr__(name):

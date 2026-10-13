@@ -21,7 +21,7 @@ arm 构造参数和已有方法调用保持兼容，包括 `_set_angles()` 和 `
 
 ## 安装
 
-按照[安装指南](INSTALLATION.md)在独立环境安装 SDK 和 transport 1.0.0。
+按照[安装指南](INSTALLATION.md)在独立环境安装 SDK 和当前 transport 源码。
 确认应用加载当前命名空间：
 
 ```bash
@@ -30,6 +30,10 @@ python -c "import linkerbot_arm; from linkerbot_arm import A7, A7lite, P7; print
 
 仅安装新发行包不会重定向应用已有的 `import linkerbot`。
 需要灵巧手的应用仍须保留自己的 hand SDK 依赖；arm 包不包含手部驱动。
+
+CAN FD 兼容层的关闭由 transport 管理。厂商驱动关闭失败仍抛出 arm 的 `CANError`，
+SocketCAN 关闭失败记录警告；资源保留到实际释放成功，可再次调用 `close()` 重试。
+关闭开始后拒绝继续收发，SocketCAN 关闭不会将共享 CAN 接口设为 down。
 
 ## ROS2 应用
 

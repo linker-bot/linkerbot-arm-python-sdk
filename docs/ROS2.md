@@ -22,7 +22,7 @@ source /opt/ros/jazzy/setup.bash
 source /path/to/ros-arm-venv/bin/activate
 ```
 
-在该环境中通过 [transport 固定源码清单](../requirements/transport.txt)安装依赖，
+在该环境中通过 [transport 源码清单](../requirements/transport.txt)安装依赖，
 再安装基础 SDK：
 
 接入个人 ROS2 fork 的生命周期任务时，以该仓库 `requirements/source-versions.txt` 的

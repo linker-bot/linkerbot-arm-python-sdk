@@ -42,7 +42,7 @@ CAN ID：左臂 `61–67`，右臂 `51–57`（与关节顺序 L1..L7 / R1..R7 �
 
 **前置依赖：** P7 依赖 Pinocchio 进行运动学计算，需要安装 `kinetix` 可选依赖：
 
-安装方法及固定 transport 源码要求见[安装指南](../../../../INSTALLATION.md)。
+安装方法及 transport 源码要求见[安装指南](../../../../INSTALLATION.md)。
 
 > **Windows 用户**：Pinocchio 不支持 pip 安装，请使用 `conda install pinocchio -c conda-forge`。
 

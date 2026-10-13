@@ -12,8 +12,7 @@ dependencies = [
   "scipy>=1.10",
   "pydantic>=2.0,<3",
   "python-can>=4.6.1,<5",
-  # Source validation additionally pins the batch-capable commit in requirements/transport.txt.
-  "linkerbot-transport[can]==1.0.0",
+  "linkerbot-transport[can]",
 ]
 
 [project.optional-dependencies]

@@ -29,5 +29,6 @@ assert dlc_to_length(9) == 12
 
 `stop()` 等待收发线程后关闭接口；线程未按时结束会记录警告并返回，可稍后再次调用。
 接口关闭异常会记录警告。直接调用厂商 `CANFDInterface.close()` 时，关闭失败抛出
-`CANError`，但仍释放库引用且不再重试；`SocketCANFDBackend.close()` 保持尽力关闭、
-不传播关闭错误的行为。arm 的这些约定独立于 transport 高层生命周期接口。
+`CANError`，保留通道和库引用，之后可再次调用 `close()` 重试；只有资源实际释放后，
+transport 才解除占用。`SocketCANFDBackend.close()` 不传播关闭错误，会记录警告，
+阻止后续收发并保留关闭重试能力；关闭自己的 socket 不会把共享 CAN 接口设为 down。
