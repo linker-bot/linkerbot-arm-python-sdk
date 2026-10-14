@@ -177,6 +177,18 @@ class TargetQueueMixin:
         )
 
 
+def send_checked(dispatcher, message):
+    """Observe physical delivery on built-in backends; retain custom adapters.
+
+    Custom single-message dispatchers keep their existing synchronous send
+    contract. Only built-in dispatchers own the SDK's asynchronous FIFO.
+    """
+    if isinstance(dispatcher, TargetQueueMixin):
+        dispatcher._send_checked(message)
+    else:
+        dispatcher.send(message)
+
+
 def submit_targets(targets, *, enforce_age=True):
     """Dispatch prevalidated targets, using native batching when available."""
     targets = tuple(targets)

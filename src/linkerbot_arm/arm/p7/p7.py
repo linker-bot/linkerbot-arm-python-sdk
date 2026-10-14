@@ -31,6 +31,7 @@ from linkerbot_arm.arm.p7.motor_v2 import MotorV2
 from linkerbot_arm.arm.common import ControlMode, Pose, State
 from linkerbot_arm.arm.common._diagnostics import describe_motor
 from linkerbot_arm.arm.common._discovery import check_motors
+from linkerbot_arm.arm.common._lifecycle import disable_motors
 from linkerbot_arm.arm.common._motion import (
     _point_target_interval,
     joint_duration,
@@ -203,8 +204,7 @@ class P7(ArmMotionQueueMixin, CancellableHomeMixin):
         with self._motion_timer._lock:
             self._motion_timer.cancel()
             self._reset_stream_target()
-            for motor in self._motors:
-                motor.disable()
+            disable_motors(self._motors)
 
     def reset_error(self) -> None:
         for motor in self._motors:

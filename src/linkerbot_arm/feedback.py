@@ -1,6 +1,7 @@
 """Immutable, zero-I/O joint feedback with host monotonic reception times.
 
-These times are recorded by the motor decoder, not by the device firmware.
+These times come from host reception before queueing/callback dispatch, not
+from the device firmware. Direct decoder calls fall back to the current time.
 They must never be interpreted as Unix timestamps or ROS clock timestamps.
 """
 

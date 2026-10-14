@@ -8,8 +8,10 @@ from enum import Enum, IntEnum
 
 import can
 
+from linkerbot_arm._transport.reception import feedback_received_at
 from linkerbot_arm._transport.targets import (
     PreparedTarget,
+    send_checked,
     submit_targets,
 )
 from linkerbot_arm.arm.common import ControlMode
@@ -69,6 +71,9 @@ class A7Motor:
         self._feedback = JointFeedback()
         self._id = id
         self._dispatcher = dispatcher
+        # Serialize lifecycle sends through their cache update. Receipt waiters
+        # can wake in any order even though physical frames use one FIFO.
+        self._lifecycle_lock = threading.Lock()
 
         # Sensor state (populated by polling)
         self._angle: AngleState
@@ -147,6 +152,12 @@ class A7Motor:
         )
         self._dispatcher.send(msg)
 
+    def _send_checked(self, data: bytes) -> None:
+        send_checked(
+            self._dispatcher,
+            can.Message(arbitration_id=self._id, data=data, is_extended_id=False),
+        )
+
     def _on_message(self, msg: can.Message) -> None:
         if (
             msg.arbitration_id != self._id
@@ -169,7 +180,7 @@ class A7Motor:
                 # legacy register replies; the previous sample is no longer current.
                 self._feedback = replace(
                     self._feedback,
-                    **{field: value, field + "_received_at": time.monotonic()},
+                    **{field: value, field + "_received_at": feedback_received_at()},
                 )
             if not math.isfinite(value):
                 return
@@ -194,27 +205,29 @@ class A7Motor:
         return struct.unpack("<f", data[:4])[0]
 
     def _save_params(self) -> None:
-        self._send(bytes([0x0D]))
+        self._send_checked(bytes([0x0D]))
         time.sleep(0.001)
 
     def set_control_mode(self, mode: ControlMode) -> None:
         mode_byte = _CONTROL_MODE_MAP[mode]
-        self._send(bytes([0x07, mode_byte]))
+        self._send_checked(bytes([0x07, mode_byte]))
 
     def enable(self) -> None:
-        self._enabled = True
-        self._send(bytes([0x2A, 0x01]))
+        with self._lifecycle_lock:
+            self._send_checked(bytes([0x2A, 0x01]))
+            self._enabled = True
 
     def disable(self) -> None:
-        self._enabled = False
-        self._send(bytes([0x2A, 0x00]))
+        with self._lifecycle_lock:
+            self._send_checked(bytes([0x2A, 0x00]))
+            self._enabled = False
 
     def calibrate_zero(self) -> None:
-        self._send(bytes([0x87]))
+        self._send_checked(bytes([0x87]))
         self._save_params()
 
     def reset_error(self) -> None:
-        self._send(bytes([0xFE]))
+        self._send_checked(bytes([0xFE]))
 
     def set_angle(self, angle: float) -> None:
         submit_targets((self._prepare_angle(angle),), enforce_age=False)
@@ -234,29 +247,29 @@ class A7Motor:
         )
 
     def set_velocity(self, velocity: float) -> None:
-        self._send(bytes([0x1F]) + struct.pack("<f", velocity))
+        self._send_checked(bytes([0x1F]) + struct.pack("<f", velocity))
         self._control_velocity = VelocityState(velocity=velocity, timestamp=time.time())
 
     def set_acceleration(self, acceleration: float) -> None:
-        self._send(bytes([0x20]) + struct.pack("<f", acceleration))
+        self._send_checked(bytes([0x20]) + struct.pack("<f", acceleration))
         self._control_acceleration = AccelerationState(
             acceleration=acceleration, timestamp=time.time()
         )
 
     def set_deceleration(self, deceleration: float) -> None:
-        self._send(bytes([0x21]) + struct.pack("<f", deceleration))
+        self._send_checked(bytes([0x21]) + struct.pack("<f", deceleration))
 
     def set_velocity_kp(self, kp: float) -> None:
+        self._send_checked(bytes([0x10]) + struct.pack("<f", kp))
         self._velocity_kp = kp
-        self._send(bytes([0x10]) + struct.pack("<f", kp))
 
     def set_velocity_ki(self, ki: float) -> None:
+        self._send_checked(bytes([0x11]) + struct.pack("<f", ki))
         self._velocity_ki = ki
-        self._send(bytes([0x11]) + struct.pack("<f", ki))
 
     def set_position_kp(self, kp: float) -> None:
+        self._send_checked(bytes([0x12]) + struct.pack("<f", kp))
         self._position_kp = kp
-        self._send(bytes([0x12]) + struct.pack("<f", kp))
 
     def read_initial_state(self, timeout_s: float = 1.0) -> None:
         now = time.time()

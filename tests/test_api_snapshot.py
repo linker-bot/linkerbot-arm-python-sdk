@@ -127,12 +127,13 @@ def test_pre_migration_api_snapshot_is_current() -> None:
         else:
             additions = {
                 "A7": {"get_feedback"},
-                "A7Motor": {"_consume_poll", "_prepare_angle"},
-                "A7liteMotor": {"_prepare_angle", "_prepare_mit"},
+                "A7Motor": {"_consume_poll", "_prepare_angle", "_send_checked"},
+                "A7liteMotor": {"_prepare_angle", "_prepare_mit", "_send_checked"},
                 "MotorV2": {
                     "_prepare_angle",
                     "_heartbeat_once",
                     "_build_ptm_frame",
+                    "_send_flash_checked",
                     "ensure_ptm_mode",
                     "set_torque_ref",
                 },

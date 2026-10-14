@@ -38,6 +38,7 @@ from linkerbot_transport.errors import (
     ValidationError as _TransportValidationError,
 )
 
+from linkerbot_arm._transport.reception import reception_time
 from linkerbot_arm._transport.targets import TargetQueueMixin
 from linkerbot_arm.exceptions import CANError, ValidationError
 
@@ -57,6 +58,8 @@ class CANMessageDispatcher(TargetQueueMixin, _TransportDispatcher):
         max_consecutive_errors: int = DEFAULT_MAX_CONSECUTIVE_ERRORS,
     ) -> None:
         self._init_target_queue()
+        self._arm_callbacks = []
+        self._arm_callbacks_lock = threading.Lock()
         self._tx_stopped = threading.Event()
         self._tx_errors = 0
         self._tx = TransmitArbiter(
@@ -70,6 +73,9 @@ class CANMessageDispatcher(TargetQueueMixin, _TransportDispatcher):
                 max_consecutive_errors=max_consecutive_errors,
                 start_send_worker=False,
             )
+            # One transport callback captures time before any arm subscriber
+            # can delay delivery to the remaining motor decoders.
+            super().subscribe(self._receive_message)
             with self._error_lock:
                 self._raise_if_cannot_send_locked()
                 self._tx.open(generation=1)
@@ -83,6 +89,29 @@ class CANMessageDispatcher(TargetQueueMixin, _TransportDispatcher):
             if isinstance(error, _TransportValidationError):
                 raise ValidationError(*error.args) from error
             raise
+
+    def subscribe(self, callback: Callable[[can.Message], None]) -> None:
+        with self._arm_callbacks_lock:
+            if callback not in self._arm_callbacks:
+                self._arm_callbacks.append(callback)
+
+    def unsubscribe(self, callback: Callable[[can.Message], None]) -> None:
+        with self._arm_callbacks_lock:
+            if callback in self._arm_callbacks:
+                self._arm_callbacks.remove(callback)
+
+    def _receive_message(self, message: can.Message) -> None:
+        received_at_s = time.monotonic()
+        with self._arm_callbacks_lock:
+            callbacks = tuple(self._arm_callbacks)
+        with reception_time(received_at_s):
+            for callback in callbacks:
+                if not self._running:
+                    break
+                try:
+                    callback(message)
+                except Exception:
+                    logger.exception("Error in arm CAN receive callback")
 
     def send(self, msg: can.Message) -> None:
         """Enqueue without waiting; preserve None, CANError and queue.Full."""
@@ -133,6 +162,8 @@ class CANMessageDispatcher(TargetQueueMixin, _TransportDispatcher):
 
     def stop(self) -> None:
         self._fail_checked_sends(CANError("CAN connection is closing"))
+        with self._arm_callbacks_lock:
+            self._arm_callbacks.clear()
         periodic = getattr(self, "_arm_periodic_scheduler", None)
         if periodic is not None:
             periodic.close()

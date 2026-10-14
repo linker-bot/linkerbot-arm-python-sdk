@@ -1,7 +1,8 @@
 """Arm callback/FIFO adapter over CANTransport's explicit lifecycle.
 
-Motor methods still enqueue and return None. TransmitArbiter owns the bounded
-FIFO; CANTransport owns physical I/O and exact protocol-address receive routes.
+Motion targets enqueue without waiting; lifecycle/configuration writes observe
+physical send results. TransmitArbiter owns the bounded FIFO; CANTransport owns
+physical I/O and exact protocol-address receive routes.
 No pending motion is replayed and no connection is automatically recovered.
 """
 
@@ -28,6 +29,7 @@ from linkerbot_transport.errors import ValidationError as TransportValidationErr
 
 from linkerbot_arm.exceptions import CANError, StateError, TimeoutError, ValidationError
 
+from .reception import reception_time
 from .targets import TargetQueueMixin
 
 logger = logging.getLogger(__name__)
@@ -212,13 +214,14 @@ class ManagedCANDispatcher(TargetQueueMixin):
                         break
                     with self._lock:
                         callbacks = tuple(self._callbacks)
-                    for callback in callbacks:
-                        if self._stopped.is_set() or self._error is not None:
-                            break
-                        try:
-                            callback(received.message)
-                        except Exception:
-                            logger.exception("Error in arm CAN receive callback")
+                    with reception_time(received.received_at_s):
+                        for callback in callbacks:
+                            if self._stopped.is_set() or self._error is not None:
+                                break
+                            try:
+                                callback(received.message)
+                            except Exception:
+                                logger.exception("Error in arm CAN receive callback")
                 if self._route.get_health().overflows:
                     raise CANError("arm receive queue overflowed; feedback was lost")
         except Exception as error:

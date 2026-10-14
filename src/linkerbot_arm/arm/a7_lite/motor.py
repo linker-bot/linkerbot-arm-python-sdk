@@ -5,8 +5,10 @@ from enum import Enum
 
 import can
 
+from linkerbot_arm._transport.reception import feedback_received_at
 from linkerbot_arm._transport.targets import (
     PreparedTarget,
+    send_checked,
     submit_targets,
 )
 from linkerbot_arm.arm.a7_lite.consts import (
@@ -170,22 +172,32 @@ class A7liteMotor:
         )
         self._dispatcher.send(msg)
 
+    def _send_checked(self, comm_type: CommType, data: bytes) -> None:
+        send_checked(
+            self._dispatcher,
+            can.Message(
+                arbitration_id=self._generate_arbitration_id(comm_type),
+                data=data,
+                is_extended_id=True,
+            ),
+        )
+
     def set_control_mode(self, mode: ControlMode) -> None:
         self._write_register_u32(0x7005, self._CONTROL_MODE_MAP[mode])
 
     def enable(self) -> None:
-        self._send(CommType.Type3, bytes(8))
+        self._send_checked(CommType.Type3, bytes(8))
 
     def disable(self) -> None:
-        self._send(CommType.Type4, bytes(8))
+        self._send_checked(CommType.Type4, bytes(8))
 
     def calibrate_zero(self) -> None:
-        self._send(CommType.Type6, b"\x01" + bytes(7))
+        self._send_checked(CommType.Type6, b"\x01" + bytes(7))
         self._save_params()
         time.sleep(0.001)
 
     def reset_error(self) -> None:
-        self._send(CommType.Type4, b"\x01" + bytes(7))
+        self._send_checked(CommType.Type4, b"\x01" + bytes(7))
 
     def set_angle(self, angle: float) -> None:
         submit_targets((self._prepare_angle(angle),), enforce_age=False)
@@ -206,8 +218,8 @@ class A7liteMotor:
 
     def set_limit_spd(self, limit_spd: float) -> None:
         """CSP velocity limit (RS00 ``0x7017``), rad/s."""
-        self._limit_spd = limit_spd
         self._write_register_float(0x7017, limit_spd)
+        self._limit_spd = limit_spd
 
     def set_velocity(self, velocity: float) -> None:
         self._write_register_float(0x7024, velocity)
@@ -266,20 +278,20 @@ class A7liteMotor:
         )
 
     def set_position_kp(self, kp: float) -> None:
-        self._loc_kp = kp
         self._write_register_float(0x701E, kp)
+        self._loc_kp = kp
 
     def set_velocity_kp(self, kp: float) -> None:
-        self._speed_kp = kp
         self._write_register_float(0x701F, kp)
+        self._speed_kp = kp
 
     def set_velicity_ki(self, ki: float) -> None:
-        self._speed_ki = ki
         self._write_register_float(0x7020, ki)
+        self._speed_ki = ki
 
     def set_velocity_filt_gain(self, gain: float) -> None:
-        self._speed_filt_gain = gain
         self._write_register_float(0x7021, gain)
+        self._speed_filt_gain = gain
 
     def has_reporting_data(self) -> bool:
         return all(
@@ -288,10 +300,10 @@ class A7liteMotor:
         )
 
     def start_reporting(self) -> None:
-        self._send(CommType.Type24, b"\x01\x02\x03\x04\x05\x06\x01\x00")
+        self._send_checked(CommType.Type24, b"\x01\x02\x03\x04\x05\x06\x01\x00")
 
     def _write_register(self, register: int, value: bytes) -> None:
-        self._send(CommType.Type18, struct.pack("<HH", register, 0) + value)
+        self._send_checked(CommType.Type18, struct.pack("<HH", register, 0) + value)
 
     def _write_register_float(self, register: int, value: float) -> None:
         self._write_register(register, struct.pack("<f", value))
@@ -318,7 +330,7 @@ class A7liteMotor:
         return struct.unpack("<f", data)[0]
 
     def _save_params(self) -> None:
-        self._send(CommType.Type22, b"\x01\x02\x03\x04\x05\x06\x07\x08")
+        self._send_checked(CommType.Type22, b"\x01\x02\x03\x04\x05\x06\x07\x08")
 
     def check_alive(self, timeout_s: float = 0.02) -> bool:
         """Check if the motor responds on the CAN bus."""
@@ -375,7 +387,7 @@ class A7liteMotor:
         if comm_type not in (CommType.Type2, CommType.Type24):
             return
 
-        received = time.monotonic()
+        received = feedback_received_at()
         now = time.time()
         raw_angle, raw_velocity, raw_torque, raw_temp = struct.unpack(">HHHH", msg.data)
 

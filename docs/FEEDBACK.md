@@ -23,7 +23,7 @@ else:
 | `feedback.joints` | Seven immutable joint samples, ordered by ascending motor ID: left 61–67, right 51–57 |
 | `feedback.connected` | At this read, the SDK has neither closed nor reported a CAN error; does not alone prove freshness |
 | `joint.angle`, `.velocity`, `.torque` | Measured rad, rad/s and Nm; NaN until received |
-| `joint.angle_received_at`, `.velocity_received_at`, `.torque_received_at` | Host `time.monotonic()` seconds at motor decoder reception; `None` until received |
+| `joint.angle_received_at`, `.velocity_received_at`, `.torque_received_at` | Original host `time.monotonic()` reception time before SDK queueing/callback delivery; `None` until received |
 | `feedback.oldest_received_at` | Minimum reception time across all fields/joints; `None` if any time is missing/nonfinite |
 | `feedback.is_fresh(max_age_s, *, now=None)` | Checks connection, completeness, finite values and every field's age in `[0, max_age_s]`; `max_age_s` must be finite and positive |
 
@@ -42,10 +42,16 @@ and delayed consumption by A7's polling scheduler do not refresh these times.
 Even invalid numeric feedback replaces its field, so a nonfinite reply cannot
 leave an earlier valid field masquerading as the latest observation.
 
-These are **host decoder reception times**, not device sampling timestamps or
-adapter hardware timestamps. CAN/driver queues, host scheduling and firmware
-latency before decoder invocation cannot be inferred from them. Protocols without
-transaction IDs may still deliver an indistinguishable late same-register reply.
+CANTransport preserves the route's original host reception time through the SDK
+queue. The legacy dispatcher captures time once before invoking any SDK
+subscriber. Slow callbacks cannot refresh later motor decoders' timestamps.
+Calling a motor decoder directly, outside either receive path, uses the current
+host monotonic time as a compatibility fallback.
+
+These are **host reception times**, not device sampling timestamps or adapter
+hardware timestamps. CAN/driver queues and firmware latency before host reception
+cannot be inferred from them. Protocols without transaction IDs may still deliver
+an indistinguishable late same-register reply.
 Choose the age threshold above the slowest configured feedback period and
 expected scheduling delay; 0.5 seconds is the ROS2 default, not a hardware latency
 guarantee. A7's default torque period is 50 ms; P7 V2's heartbeat period is 200 ms.

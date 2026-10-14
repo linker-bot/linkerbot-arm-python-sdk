@@ -20,12 +20,15 @@ import logging
 import math
 import threading
 import time
+from contextlib import nullcontext
 
 import can
 
+from linkerbot_arm._transport.reception import feedback_received_at
 from linkerbot_arm._transport.targets import (
     PreparedTarget,
     TargetQueueMixin,
+    send_checked,
     submit_targets,
 )
 from linkerbot_arm.arm.a7.motor import SensorType  # re-exported for parity with A7Motor
@@ -150,6 +153,9 @@ class MotorV2:
         self._feedback = JointFeedback()
         self._id = id
         self._dispatcher = dispatcher
+        # Keep lifecycle completion/cache order aligned with physical FIFO,
+        # without locking out target admission or the periodic worker.
+        self._lifecycle_lock = threading.Lock()
 
         # Sensor state (populated by feedback frames)
         self._angle: AngleState
@@ -161,6 +167,8 @@ class MotorV2:
         # Control state (cached host-side; the V2 drive does not expose its
         # own "configured" target values via standard runtime frames).
         self._enabled: bool = False
+        self._pending_enables = 0
+        self._heartbeat_ready = True
         self._control_angle: AngleState
         self._control_velocity: VelocityState
         self._control_acceleration: AccelerationState
@@ -242,7 +250,7 @@ class MotorV2:
             data=data,
             is_extended_id=False,
         )
-        self._dispatcher.send(msg)
+        send_checked(self._dispatcher, msg)
 
     def _send_flash(self, data: bytes) -> None:
         msg = can.Message(
@@ -251,6 +259,16 @@ class MotorV2:
             is_extended_id=False,
         )
         self._dispatcher.send(msg)
+
+    def _send_flash_checked(self, data: bytes) -> None:
+        send_checked(
+            self._dispatcher,
+            can.Message(
+                arbitration_id=_FLASH_REQUEST_ID_BASE + self._id,
+                data=data,
+                is_extended_id=False,
+            ),
+        )
 
     def _build_ptm_frame(
         self, theta_ref: float, v_ref: float, t_ref: float | None = None
@@ -313,7 +331,7 @@ class MotorV2:
         if status not in _STATUS_VALID:
             return
 
-        received = time.monotonic()
+        received = feedback_received_at()
         now = time.time()
         self._enabled = status != _STATUS_REST
 
@@ -372,23 +390,50 @@ class MotorV2:
         # Sync control_angle to the current measured angle so the heartbeat
         # holds position rather than jumping to a stale target left over
         # from a prior session.
-        if hasattr(self, "_angle"):
-            self._control_angle = AngleState(
-                angle=self._angle.angle, timestamp=time.time()
+        # Skip idle heartbeats while enable waits, without holding the target
+        # admission lock across physical I/O. A newly admitted explicit target
+        # must survive the completion of enable.
+        with self._lifecycle_lock:
+            lock = (
+                self._dispatcher._target_lock
+                if isinstance(self._dispatcher, TargetQueueMixin)
+                else nullcontext()
             )
-        self._send_control(_ENTER_MOTOR_STATE)
-        self._enabled = True
+            with lock:
+                self._pending_enables += 1
+                self._heartbeat_ready = False
+                previous_target = getattr(self, "_control_angle", None)
+            try:
+                self._send_control(_ENTER_MOTOR_STATE)
+                with lock:
+                    if (
+                        hasattr(self, "_angle")
+                        and getattr(self, "_control_angle", None) is previous_target
+                    ):
+                        self._control_angle = AngleState(
+                            angle=self._angle.angle, timestamp=time.time()
+                        )
+                    self._enabled = True
+                    self._heartbeat_ready = True
+            finally:
+                with lock:
+                    self._pending_enables -= 1
+                # Failure (including an in-flight timeout or interruption)
+                # leaves heartbeat paused. A late enable may still reach the
+                # drive; only a successful explicit enable may resume holds.
 
     def disable(self) -> None:
-        self._send_control(_ENTER_REST_STATE)
-        self._enabled = False
+        with self._lifecycle_lock:
+            self._send_control(_ENTER_REST_STATE)
+            self._enabled = False
 
     def reset_error(self) -> None:
         # Soft faults clear by transitioning Motor → Rest. Non-clearable
         # hardware faults (codes ≥ 128) require a power cycle; we silently
         # do nothing for them (reading ``fault_code`` lets callers detect
         # this).
-        self._send_control(_ENTER_REST_STATE)
+        with self._lifecycle_lock:
+            self._send_control(_ENTER_REST_STATE)
 
     def calibrate_zero(self) -> None:
         self._send_control(_SET_ZERO_POSITION)
@@ -596,8 +641,11 @@ class MotorV2:
                 )
 
             if isinstance(self._dispatcher, TargetQueueMixin):
-                self._dispatcher.send_heartbeat(self, build_message)
-            else:
+                with self._dispatcher._target_lock:
+                    if self._pending_enables or not self._heartbeat_ready:
+                        return
+                    self._dispatcher.send_heartbeat(self, build_message)
+            elif not self._pending_enables and self._heartbeat_ready:
                 self._dispatcher.send(build_message())
 
     def _heartbeat_loop(self) -> None:
@@ -642,7 +690,7 @@ class MotorV2:
             + data
             + bytes([_FLASH_CMD_WRITE, _FLASH_FRAME_FOOTER])
         )
-        self._send_flash(request)
+        self._send_flash_checked(request)
 
     def _save_params(self) -> None:
         # Save Flash uses Index = 0; the data payload is ignored.

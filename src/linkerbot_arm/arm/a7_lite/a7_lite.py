@@ -43,6 +43,7 @@ from linkerbot_arm.arm.a7_lite.consts import (
 from linkerbot_arm.arm.common import ControlMode, Pose, State
 from linkerbot_arm.arm.common._diagnostics import describe_motor
 from linkerbot_arm.arm.common._discovery import check_motors
+from linkerbot_arm.arm.common._lifecycle import disable_motors
 from linkerbot_arm.arm.common._motion import (
     joint_duration,
     point_duration,
@@ -280,8 +281,7 @@ class A7lite(ArmMotionQueueMixin, CancellableHomeMixin):
     def disable(self) -> None:
         with self._motion_timer._lock:
             self._motion_timer.cancel()
-            for motor in self._motors:
-                motor.disable()
+            disable_motors(self._motors)
 
     # def get_error(self) -> A7liteError: ...
 
