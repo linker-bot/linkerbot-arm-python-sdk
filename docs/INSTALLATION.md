@@ -1,5 +1,7 @@
 # 安装与环境配置
 
+文档按四组阅读：[快速开始](zh/src/quick_start.md)、[连接设备](zh/src/reference/can.md)、[设备功能](zh/src/quick_start.md#models)、[补充说明](TRANSPORT.md)。设备功能中先选择型号，再进入该型号的运动控制、配置、状态和运动学章节。
+
 SDK 需要 Python 3.10+、NumPy 1.24+、SciPy 1.10+、Pydantic 2.x，
 以及 `linkerbot-transport[can]`。A7、A7lite、P7、H75 构造时均需要 Pinocchio。
 这些是通用 SDK 的最低依赖；当前运动学验证基线为 Pinocchio 4.1.0。
@@ -73,7 +75,7 @@ python -c "from linkerbot_arm.arm.kinetix import ArmKinetix; print(ArmKinetix.fr
 python -m pip check
 ```
 
-六份左右臂 URDF 随安装包提供，无需设置额外资源路径。
+八份左右臂 URDF 随安装包提供，无需设置额外资源路径。
 完成安装后，按 [CAN 接口配置](zh/src/reference/can.md)连接硬件。
 四种型号默认使用 `CANTransport`，无需设置环境变量；如需低层后端，在启动应用前设置
 `LINKERBOT_ARM_TRANSPORT=dispatcher`。详见 [后端选择与故障恢复](TRANSPORT.md)。
