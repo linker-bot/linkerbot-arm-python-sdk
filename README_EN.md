@@ -75,6 +75,7 @@ torque conversion is unavailable. Check the upstream scaling defaults against yo
 - [P7 API](docs/zh/src/reference/p7/README.md)
 - [H75 API](docs/zh/src/reference/h75/README.md)
 - [CAN](docs/zh/src/reference/can.md)
+- [Feedback freshness and lightweight state reads](docs/FEEDBACK.md)
 - [ROS2](docs/ROS2.md)
 - [Migration from the legacy SDK](docs/MIGRATION.md)
 - [Changelog](CHANGELOG.md)

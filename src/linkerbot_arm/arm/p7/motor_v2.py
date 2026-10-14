@@ -40,6 +40,7 @@ from linkerbot_arm.arm.common.model import (
 )
 from linkerbot_arm.comm import CANMessageDispatcher
 from linkerbot_arm.exceptions import StateError, TimeoutError
+from linkerbot_arm.feedback import JointFeedback
 from linkerbot_arm.periodic import PeriodicTask, scheduler_for
 from linkerbot_arm.relay import DataRelay
 
@@ -146,6 +147,7 @@ class MotorV2:
     """
 
     def __init__(self, id: int, dispatcher: CANMessageDispatcher) -> None:
+        self._feedback = JointFeedback()
         self._id = id
         self._dispatcher = dispatcher
 
@@ -311,6 +313,7 @@ class MotorV2:
         if status not in _STATUS_VALID:
             return
 
+        received = time.monotonic()
         now = time.time()
         self._enabled = status != _STATUS_REST
 
@@ -320,20 +323,23 @@ class MotorV2:
         fault = data[6]
         temp = data[7]
 
-        self._angle = AngleState(
-            angle=_dequantize(pos_raw, _THETA_MIN, _THETA_MAX, 16),
-            timestamp=now,
-        )
-        self._velocity = VelocityState(
-            velocity=_dequantize(vel_raw, _V_MIN, _V_MAX, 12),
-            timestamp=now,
-        )
-        self._torque = TorqueState(
-            torque=_dequantize(torque_raw, _TORQUE_MIN, _TORQUE_MAX, 12),
-            timestamp=now,
-        )
+        angle = _dequantize(pos_raw, _THETA_MIN, _THETA_MAX, 16)
+        velocity = _dequantize(vel_raw, _V_MIN, _V_MAX, 12)
+        torque = _dequantize(torque_raw, _TORQUE_MIN, _TORQUE_MAX, 12)
+        self._angle = AngleState(angle=angle, timestamp=now)
+        self._velocity = VelocityState(velocity=velocity, timestamp=now)
+        self._torque = TorqueState(torque=torque, timestamp=now)
         self._temperature = TemperatureState(temperature=float(temp), timestamp=now)
         self._fault_code = fault
+        # Publish one immutable frame after every component has been decoded.
+        self._feedback = JointFeedback(
+            angle=angle,
+            velocity=velocity,
+            torque=torque,
+            angle_received_at=received,
+            velocity_received_at=received,
+            torque_received_at=received,
+        )
 
     def _on_flash_response(self, data: bytes) -> None:
         # Response layout: <motor_id> <index> <D0> <D1> <D2> <D3> 0x00 0xFF

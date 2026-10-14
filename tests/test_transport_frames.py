@@ -170,6 +170,12 @@ def test_motor_control_frames_and_feedback(
         )
         assert motor._flash_relays[0x0B].snapshot() == b"\x01\x02\x03\x04"
 
+    # The new immutable cache is updated by the same real receive path for
+    # both dispatcher backends, without changing the wire or legacy values.
+    assert motor._feedback.angle_received_at is not None
+    expected_angle = 1.25 if cls is A7Motor else motor.angle.angle
+    assert motor._feedback.angle == expected_angle
+
 
 @pytest.mark.parametrize("cls", [A7Motor, A7liteMotor, MotorV2])
 def test_motor_register_timeout_is_still_arm_timeout(link, cls):

@@ -30,6 +30,7 @@ from linkerbot_arm.arm.common.model import (
     VelocityState,
 )
 from linkerbot_arm.comm import CANMessageDispatcher
+from linkerbot_arm.feedback import JointFeedback
 from linkerbot_arm.relay import DataRelay
 
 _MASTER_ID = 0xFD
@@ -69,6 +70,7 @@ class A7liteMotor:
     }
 
     def __init__(self, id: int, dispatcher: CANMessageDispatcher) -> None:
+        self._feedback = JointFeedback()
         self._id = id
         self._dispatcher = dispatcher
         self._angle: AngleState
@@ -373,16 +375,23 @@ class A7liteMotor:
         if comm_type not in (CommType.Type2, CommType.Type24):
             return
 
+        received = time.monotonic()
         now = time.time()
         raw_angle, raw_velocity, raw_torque, raw_temp = struct.unpack(">HHHH", msg.data)
 
-        self._angle = AngleState(
-            angle=raw_angle / 65535.0 * 25.14 - 12.57, timestamp=now
-        )
-        self._velocity = VelocityState(
-            velocity=raw_velocity / 65535.0 * 66.0 - 33.0, timestamp=now
-        )
-        self._torque = TorqueState(
-            torque=raw_torque / 65535.0 * 28.0 - 14.0, timestamp=now
-        )
+        angle = raw_angle / 65535.0 * 25.14 - 12.57
+        velocity = raw_velocity / 65535.0 * 66.0 - 33.0
+        torque = raw_torque / 65535.0 * 28.0 - 14.0
+        self._angle = AngleState(angle=angle, timestamp=now)
+        self._velocity = VelocityState(velocity=velocity, timestamp=now)
+        self._torque = TorqueState(torque=torque, timestamp=now)
         self._temperature = TemperatureState(temperature=raw_temp / 10.0, timestamp=now)
+        # Publish one immutable frame after every component has been decoded.
+        self._feedback = JointFeedback(
+            angle=angle,
+            velocity=velocity,
+            torque=torque,
+            angle_received_at=received,
+            velocity_received_at=received,
+            torque_received_at=received,
+        )

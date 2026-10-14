@@ -3,6 +3,7 @@ import math
 import struct
 import threading
 import time
+from dataclasses import replace
 from enum import Enum, IntEnum
 
 import can
@@ -21,6 +22,7 @@ from linkerbot_arm.arm.common.model import (
 )
 from linkerbot_arm.comm import CANMessageDispatcher
 from linkerbot_arm.exceptions import TimeoutError
+from linkerbot_arm.feedback import JointFeedback
 from linkerbot_arm.periodic import PeriodicTask, scheduler_for
 from linkerbot_arm.relay import DataRelay
 
@@ -34,6 +36,13 @@ class SensorType(IntEnum):
     TORQUE = 0x03
     VELOCITY = 0x05
     TEMPERATURE = 0x5F
+
+
+_FEEDBACK_FIELDS = {
+    SensorType.POSITION: "angle",
+    SensorType.VELOCITY: "velocity",
+    SensorType.TORQUE: "torque",
+}
 
 
 class InternalSensorType(IntEnum):
@@ -57,6 +66,7 @@ _CONTROL_MODE_MAP = {
 
 class A7Motor:
     def __init__(self, id: int, dispatcher: CANMessageDispatcher) -> None:
+        self._feedback = JointFeedback()
         self._id = id
         self._dispatcher = dispatcher
 
@@ -152,7 +162,16 @@ class A7Motor:
         if cmd not in (InternalSensorType.HANDSHAKE, InternalSensorType.ENABLED):
             if len(msg.data) < 5:
                 return
-            if not math.isfinite(struct.unpack("<f", msg.data[1:5])[0]):
+            value = struct.unpack("<f", msg.data[1:5])[0]
+            field = _FEEDBACK_FIELDS.get(cmd)
+            if field is not None:
+                # Invalidate a nonfinite measurement before rejecting it from
+                # legacy register replies; the previous sample is no longer current.
+                self._feedback = replace(
+                    self._feedback,
+                    **{field: value, field + "_received_at": time.monotonic()},
+                )
+            if not math.isfinite(value):
                 return
         with self._read_relays_lock:
             relay = self._read_relays.get(cmd)

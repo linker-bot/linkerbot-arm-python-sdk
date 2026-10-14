@@ -37,6 +37,7 @@ from linkerbot_arm.arm.common._motion import (
 from linkerbot_arm.arm.common._stream import plan_linear, stream_targets
 from linkerbot_arm.comm import CanInterface, CANMessageDispatcher
 from linkerbot_arm.exceptions import StateError, ValidationError
+from linkerbot_arm.feedback import ArmFeedback, read_feedback
 from linkerbot_arm.motion_timer import CancellableHomeMixin, MotionTimer
 
 from .motor import A7Motor, SensorType
@@ -202,6 +203,10 @@ class A7(ArmMotionQueueMixin, CancellableHomeMixin):
         for motor, acceleration in zip(self._motors, accelerations):
             motor.set_acceleration(acceleration)
             motor.set_deceleration(acceleration)
+
+    def get_feedback(self) -> ArmFeedback:
+        """Read cached measured joints with monotonic reception times, without I/O."""
+        return read_feedback(self)
 
     def get_state(self) -> State:
         return State(

@@ -25,9 +25,11 @@ source /path/to/ros-arm-venv/bin/activate
 ```
 
 在该环境中使用 ROS2 仓库 `requirements/source-versions.txt` 配置的源码：
-arm 固定到包含生命周期、运动安全及 transport 兼容修复的提交，transport 使用 `main`，
-不固定版本号、tag 或旧提交。SDK checkout 必须与该清单中的 arm 提交一致，
-以使用配套的 `constraints/ros-jazzy.txt`。
+arm 固定到同时包含反馈新鲜度和当前主分支安全修复的配套提交，transport 从新组织仓库
+的 `main` 安装，不固定 transport 版本、tag 或旧提交。SDK checkout 必须与清单中的
+arm 提交一致，以使用配套的 `constraints/ros-jazzy.txt`。
+SDK 反馈功能合入前，清单引用已推送反馈分支的完整提交；Squash 合入后更新为实际合入 SHA。
+旧安全基线不包含 `get_feedback()`，不能仅凭相同发行版本号代替配套源码。
 
 ```bash
 ARM_SOURCE_COMMIT=$(sed -n 's/^linkerbot-arm @ .*@//p' /path/to/linkerbot-arm-ros2/requirements/source-versions.txt)
@@ -88,7 +90,8 @@ NumPy >=2.2.6，与 Jazzy 部署锁没有交集；需要继续使用旧 SDK 时�
 
 - `enable()`、`disable()`、`reset_error()` 管理电机。
 - `_set_angles(angles)` 转发七个关节目标；`move_j()` / `home()` 支持 `blocking` 参数。
-- `get_angles()`、`get_velocities()`、`get_torques()` 获取反馈。
+- `get_feedback()` 获取带主机接收时间和连接状态的轻量反馈，发布前检查 `is_fresh()`。
+- `get_angles()`、`get_velocities()`、`get_torques()` 保留缓存读取行为，不保证新鲜度。
 - `close()` 关闭连接；SDK 本身也支持上下文管理器。
 
 本轮配套 SDK 源码中的 P7 `_set_angles()` 会按关节速度、加速度限幅：首周期保持缓存反馈位置，
@@ -103,7 +106,7 @@ ROS2 loader 优先使用当前 Python 可导入的 `linkerbot_arm`，否则通�
 未设置新变量时，旧 `LINKERBOT_SDK_SRC` 作为兼容别名保留并输出迁移提示。
 两个变量都只接受含 `linkerbot_arm` 的新 SDK 源码；不再解析旧完整 SDK 的 `linkerbot`
 命名空间，也不将旧源码或已安装的旧包作为回退来源。当前节点会在打开 CAN 前拒绝
-缺少 `home_cancellable` 的新 SDK，见下文。
+缺少 `home_cancellable` 或 `get_feedback` 的新 SDK，见下文。
 优先把所需 SDK 安装到节点实际使用的 Python 环境；源码变量不会覆盖已安装的新 SDK。
 
 完成 [源码安装](TRANSPORT.md) 后，A7、A7lite、P7 默认使用 `CANTransport`，启动节点无需
@@ -130,6 +133,17 @@ ROS2 包已将启动、使能和回零接入后台生命周期任务，回零使
 被取消的原请求返回 `success=false`。服务保持 `Trigger` 类型，响应等待操作实际返回。
 停止状态锁存，只有显式使能或回零成功后才恢复流式目标准入；这些软件控制仍受 SDK、
 CAN 排队和驱动耗时影响。安装 ROS2 仓库 `requirements/source-versions.txt` 指定的源码组合。
+
+## 状态有效性
+
+配套 ROS2 节点通过 `get_feedback()` 检查七关节的位置、速度、力矩；任一字段缺失、
+非有限或接收年龄超过默认 `feedback_timeout=0.5` 秒，或 SDK 关闭/总线报错时，
+暂停整条 JointState。有效反馈恢复后继续发布；反馈过期本身不触发运动或停止命令。
+
+重复缓存保留接收时间，`header.stamp` 保守映射最老字段的主机接收时刻，
+不把发布频率当作新采样频率。这不是硬件采样时间或跨关节同步采样保证。
+字段与兼容语义见[反馈接口说明](FEEDBACK.md)，ROS 时钟映射见
+[ROS2 反馈文档](https://gitea.linkerhub.work/linker-bot/linkerbot-arm-ros2/src/branch/main/docs/feedback.md)。
 
 ## H75 接入范围
 

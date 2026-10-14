@@ -122,9 +122,11 @@ def test_pre_migration_api_snapshot_is_current() -> None:
                 "set_csp_angles",
                 "set_limit_spds",
                 "get_limit_spds",
+                "get_feedback",
             }
         else:
             additions = {
+                "A7": {"get_feedback"},
                 "A7Motor": {"_consume_poll", "_prepare_angle"},
                 "A7liteMotor": {"_prepare_angle", "_prepare_mit"},
                 "MotorV2": {
@@ -135,6 +137,7 @@ def test_pre_migration_api_snapshot_is_current() -> None:
                     "set_torque_ref",
                 },
                 "P7": {
+                    "get_feedback",
                     "_ensure_v2_ptm_mode",
                     "_require_target_connection",
                     "_reset_stream_target",

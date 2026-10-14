@@ -72,6 +72,7 @@ from linkerbot_arm.arm import State, WayPoint
 - [H75 API](docs/zh/src/reference/h75/README.md)
 - [CAN 接口](docs/zh/src/reference/can.md)
 - [CAN 后端选择与故障恢复](docs/TRANSPORT.md)
+- [反馈新鲜度与轻量状态接口](docs/FEEDBACK.md)
 - [ROS2 接入](docs/ROS2.md)
 - [从旧 SDK 迁移](docs/MIGRATION.md)
 - [版本变更](CHANGELOG.md)

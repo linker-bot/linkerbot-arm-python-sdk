@@ -192,6 +192,12 @@ pose = Pose(x=0.3, y=0.1, z=0.5, rx=0.0, ry=0.5, rz=0.0)
 from linkerbot_arm import ControlMode
 ```
 
+## 反馈新鲜度
+
+使用 `get_feedback()` 和 `feedback.is_fresh(max_age_s=0.5)` 判断完整反馈是否有效。
+前五个 A7 电机按字段分别计时，末两电机按反馈帧统一更新；读取不发 CAN 请求且不计算 FK。
+字段、时钟与兼容行为见[反馈接口说明](../../../../FEEDBACK.md)。
+
 ## CAN 总线
 
 `interface_name` 指定 CAN 接口名称（如 `"can0"`），`interface_type` 指定接口类型（默认 `"socketcan"`）。

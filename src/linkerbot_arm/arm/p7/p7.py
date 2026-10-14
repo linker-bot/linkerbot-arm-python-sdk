@@ -7,6 +7,7 @@ from typing import Literal
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
+from linkerbot_arm.feedback import ArmFeedback, read_feedback
 from linkerbot_arm._transport import arm_dispatcher, close_arm, exit_arm
 from linkerbot_arm._transport.targets import ArmMotionQueueMixin, submit_targets
 from linkerbot_arm.arm.a7.motor import A7Motor, SensorType
@@ -343,6 +344,10 @@ class P7(ArmMotionQueueMixin, CancellableHomeMixin):
         for motor, acceleration in zip(self._motors, accelerations):
             motor.set_acceleration(acceleration)
             motor.set_deceleration(acceleration)
+
+    def get_feedback(self) -> ArmFeedback:
+        """Read cached measured joints with monotonic reception times, without I/O."""
+        return read_feedback(self)
 
     def get_state(self) -> State:
         return State(

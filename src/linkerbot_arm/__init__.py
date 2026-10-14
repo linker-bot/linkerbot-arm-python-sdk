@@ -16,6 +16,7 @@ from .exceptions import (
     TimeoutError,
     ValidationError,
 )
+from .feedback import ArmFeedback, JointFeedback
 
 if TYPE_CHECKING:  # pragma: no cover - import-time only for static checkers
     from .arm import A7, H75, P7, A7lite, ControlMode, Pose
@@ -48,6 +49,8 @@ def __dir__() -> list[str]:
 
 
 __all__ = [  # noqa: RUF022 - preserve the original export order
+    "ArmFeedback",
+    "JointFeedback",
     "LinkerbotError",
     "TimeoutError",
     "CANError",
