@@ -12,13 +12,13 @@ Python 3.10+；发行包名为 `linkerbot-arm`，导入名为 `linkerbot_arm`。
 
 SDK 基础依赖为 NumPy >=1.24、SciPy >=1.10、Pydantic 2.x，以及
 `linkerbot-transport[can]`。源码仓库为
-[linker-bot/linkerbot-arm-python](https://gitea.linkerhub.work/linker-bot/linkerbot-arm-python)，
-默认分支为 `main`；仓库改名后，发行包仍为 `linkerbot-arm`，导入仍为 `linkerbot_arm`。
-具有公司 Gitea 访问权限时执行：
+[linker-bot/linkerbot-arm-python-sdk](https://github.com/linker-bot/linkerbot-arm-python-sdk)，
+默认分支为 `main`；发行包为 `linkerbot-arm`，导入为 `linkerbot_arm`。
+从 GitHub 获取并安装源码：
 
 ```bash
-git clone --branch main https://gitea.linkerhub.work/linker-bot/linkerbot-arm-python.git
-cd linkerbot-arm-python
+git clone --branch main https://github.com/linker-bot/linkerbot-arm-python-sdk.git
+cd linkerbot-arm-python-sdk
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --force-reinstall --no-deps -r requirements/transport.txt

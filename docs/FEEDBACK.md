@@ -62,8 +62,8 @@ return old values after close. Their historical Unix `timestamp` fields are
 unchanged; do not mix them with the new monotonic times. `get_state()` also
 computes forward kinematics and is unnecessary for frequent joint publication.
 
-The [ROS2 adapter](https://gitea.linkerhub.work/linker-bot/linkerbot-arm-ros2)
+The [ROS2 adapter](https://github.com/linker-bot/linkerbot-arm-ros2-sdk)
 uses this interface, suppresses incomplete/stale state, and maps reception times
 conservatively into the node's ROS clock. See its
-[feedback documentation](https://gitea.linkerhub.work/linker-bot/linkerbot-arm-ros2/src/branch/main/docs/feedback.md)
+[feedback documentation](https://github.com/linker-bot/linkerbot-arm-ros2-sdk/blob/main/docs/feedback.md)
 for `JointState.header.stamp` semantics.

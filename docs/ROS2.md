@@ -1,6 +1,6 @@
 # ROS2 接入
 
-[linkerbot-arm-ros2](https://gitea.linkerhub.work/linker-bot/linkerbot-arm-ros2) 将 `linkerbot_arm` 接入 ROS2，支持 A7、A7 Lite、P7。ROS2 包名仍为 `linker_arm_ros2`，无需 hand SDK 或旧聚合 SDK。
+[linkerbot-arm-ros2-sdk](https://github.com/linker-bot/linkerbot-arm-ros2-sdk) 将 `linkerbot_arm` 接入 ROS2，支持 A7、A7 Lite、P7。ROS2 包名仍为 `linker_arm_ros2`，无需 hand SDK 或旧聚合 SDK。
 
 ## 安装与环境
 
@@ -11,7 +11,7 @@
 
 使用对应 ROS 的系统 Python、APT Pinocchio 和读取系统包的 venv。ROS2 仓库提供 `constraints/ros-humble.txt`、`constraints/ros-jazzy.txt`，均使用 NumPy 1.26.4、SciPy 1.13.1；不要直接复用另一发行版的环境或构建结果。
 
-完整安装流程见 ROS2 [安装与构建](https://gitea.linkerhub.work/linker-bot/linkerbot-arm-ros2/src/branch/doc/docs/INSTALLATION.md)，开发预览见[ROS2 使用手册](https://doc.linkerhub.work/sdk-doc/#/linkerbot-arm-ros2/docs/environment_setup.md)。SDK 使用 ROS2 仓库 `requirements/source-versions.txt` 的配套提交，transport 从当前 `main` 安装，不限制版本号、tag 或旧提交。
+完整安装流程见 ROS2 [安装与构建](https://github.com/linker-bot/linkerbot-arm-ros2-sdk/blob/main/docs/INSTALLATION.md)，开发预览见[ROS2 使用手册](https://doc.linkerhub.work/sdk-doc/#/linkerbot-arm-ros2/docs/environment_setup.md)。SDK 使用 ROS2 仓库 `requirements/source-versions.txt` 的配套提交，transport 从当前 `main` 安装，不限制版本号、tag 或旧提交。
 
 APT 方案安装基础 SDK，不添加 `[kinetix]`；APT 提供 `pinocchio` 模块，没有 PyPI `pin` 发行元数据。即使只使用关节控制，SDK 构造仍需要 Pinocchio。独立 SDK 的通用 `constraints/ros2.txt` 不能替代 ROS2 的发行版 profile。
 
@@ -25,10 +25,10 @@ head -n 1 install/linker_arm_ros2/lib/linker_arm_ros2/arm_node
 python -c "import sys, linkerbot_arm; print(sys.executable, linkerbot_arm.__file__)"
 ```
 
-loader 优先使用可导入的 `linkerbot_arm`，随后查找 `LINKERBOT_ARM_SRC`、旧兼容变量 `LINKERBOT_SDK_SRC` 以及附近旧目录名 `linkerbot-arm`。新目录 `linkerbot-arm-python` 应安装到当前环境，或显式指定：
+loader 优先使用可导入的 `linkerbot_arm`，随后查找 `LINKERBOT_ARM_SRC`、旧兼容变量 `LINKERBOT_SDK_SRC` 以及附近旧目录名 `linkerbot-arm`。新目录 `linkerbot-arm-python-sdk` 应安装到当前环境，或显式指定：
 
 ```bash
-export LINKERBOT_ARM_SRC=/absolute/path/to/linkerbot-arm-python/src
+export LINKERBOT_ARM_SRC=/absolute/path/to/linkerbot-arm-python-sdk/src
 ```
 
 变量也接受仓库根目录，但不会覆盖已可导入的 SDK；变更后重启进程。它们不加载旧聚合包的 `linkerbot` 命名空间。节点在打开 CAN 前检查 `home_cancellable` 和 `get_feedback` 能力。

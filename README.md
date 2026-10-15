@@ -15,13 +15,13 @@ forward/inverse kinematics. Requires Python 3.10+. Install `linkerbot-arm` and i
 
 The base SDK requires NumPy >=1.24, SciPy >=1.10, Pydantic 2.x and
 `linkerbot-transport[can]`. The source repository is
-[linker-bot/linkerbot-arm-python](https://gitea.linkerhub.work/linker-bot/linkerbot-arm-python),
+[linker-bot/linkerbot-arm-python-sdk](https://github.com/linker-bot/linkerbot-arm-python-sdk),
 with `main` as its default branch. The distribution and import names remain
-`linkerbot-arm` and `linkerbot_arm`. With company Gitea access, run:
+`linkerbot-arm` and `linkerbot_arm`. To obtain and install the source from GitHub, run:
 
 ```bash
-git clone --branch main https://gitea.linkerhub.work/linker-bot/linkerbot-arm-python.git
-cd linkerbot-arm-python
+git clone --branch main https://github.com/linker-bot/linkerbot-arm-python-sdk.git
+cd linkerbot-arm-python-sdk
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --force-reinstall --no-deps -r requirements/transport.txt
