@@ -1,4 +1,4 @@
-include LICENSE README.md README_EN.md CHANGELOG.md CONTRIBUTING.md ruff.toml
+include LICENSE README.md README_zh.md CHANGELOG.md CONTRIBUTING.md ruff.toml
 recursive-include src/linkerbot_arm *.urdf py.typed
 recursive-include docs *.md *.toml *.png
 recursive-include tests *.py *.json
