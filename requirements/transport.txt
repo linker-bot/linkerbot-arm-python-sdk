@@ -1,2 +1,2 @@
 # Install the current transport source shared by arm and hand.
-linkerbot-transport[can] @ git+ssh://git@git.linkerhub.work:12222/linker-bot/linkerbot-transport.git@main
+linkerbot-transport[can] @ git+https://github.com/linker-bot/linkerbot-transport.git@main

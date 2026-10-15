@@ -1,6 +1,6 @@
 # ROS2 Integration
 
-[linkerbot-arm-ros2](https://gitea.linkerhub.work/linker-bot/linkerbot-arm-ros2) connects `linkerbot_arm` to ROS2 for A7, A7 Lite, and P7. The ROS2 package remains `linker_arm_ros2`; the hand SDK and old aggregate SDK are unnecessary.
+[linkerbot-arm-ros2-sdk](https://github.com/linker-bot/linkerbot-arm-ros2-sdk) connects `linkerbot_arm` to ROS2 for A7, A7 Lite, and P7. The ROS2 package remains `linker_arm_ros2`; the hand SDK and old aggregate SDK are unnecessary.
 
 ## Installation and Environment
 
@@ -11,7 +11,7 @@
 
 Use the distribution's system Python, APT Pinocchio, and a venv with system packages. The ROS2 repository provides `constraints/ros-humble.txt` and `constraints/ros-jazzy.txt`, both using NumPy 1.26.4 and SciPy 1.13.1. Do not reuse another distribution's environment or build outputs.
 
-See the ROS2 [installation guide](https://gitea.linkerhub.work/linker-bot/linkerbot-arm-ros2/src/branch/doc/docs/en/INSTALLATION.md) for complete installation, or the [English developer preview](https://doc.linkerhub.work/sdk-doc/#/linkerbot-arm-ros2/docs/environment_setup.md?lang=en). Install the paired SDK commit selected by ROS2's `requirements/source-versions.txt`. Transport installs from current `main` without a version, tag, or old-commit constraint.
+See the ROS2 [installation guide](https://github.com/linker-bot/linkerbot-arm-ros2-sdk/blob/main/docs/en/INSTALLATION.md) for complete installation, or the [English developer preview](https://doc.linkerhub.work/sdk-doc/#/linkerbot-arm-ros2/docs/environment_setup.md?lang=en). Install the paired SDK commit selected by ROS2's `requirements/source-versions.txt`. Transport installs from current `main` without a version, tag, or old-commit constraint.
 
 With APT Pinocchio, install the base SDK without `[kinetix]`. APT provides the `pinocchio` module without PyPI `pin` distribution metadata. SDK construction requires Pinocchio even for joint-only control. The SDK's generic `constraints/ros2.txt` does not replace ROS2's distribution-specific profiles.
 
@@ -25,10 +25,10 @@ head -n 1 install/linker_arm_ros2/lib/linker_arm_ros2/arm_node
 python -c "import sys, linkerbot_arm; print(sys.executable, linkerbot_arm.__file__)"
 ```
 
-The loader first uses importable `linkerbot_arm`, then checks `LINKERBOT_ARM_SRC`, deprecated `LINKERBOT_SDK_SRC`, and nearby directories named `linkerbot-arm`. Install a renamed `linkerbot-arm-python` checkout or specify:
+The loader first uses importable `linkerbot_arm`, then checks `LINKERBOT_ARM_SRC`, deprecated `LINKERBOT_SDK_SRC`, and nearby directories named `linkerbot-arm`. Install a renamed `linkerbot-arm-python-sdk` checkout or specify:
 
 ```bash
-export LINKERBOT_ARM_SRC=/absolute/path/to/linkerbot-arm-python/src
+export LINKERBOT_ARM_SRC=/absolute/path/to/linkerbot-arm-python-sdk/src
 ```
 
 The repository root is also accepted, but source variables do not override an importable SDK. Restart after changing the source. The loader does not use the old aggregate `linkerbot` namespace. The node checks `home_cancellable` and `get_feedback` before opening CAN.

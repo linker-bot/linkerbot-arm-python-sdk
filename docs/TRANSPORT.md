@@ -14,7 +14,7 @@ python -m pip check
 
 `requirements/transport.txt` 从 transport 的 `main` 分支安装当前实现，提供批次准入和协议路由能力；两个后端共用该依赖，不再固定版本号或旧提交。`requirements/cantransport.txt` 保留为同一清单的兼容入口。安装命令本身不连接硬件；新建 arm 对象仍按原行为打开通道、检查电机和读取初始状态。
 
-ROS2 环境按 [ROS2 接入](ROS2.md) 使用系统兼容的运动学依赖，安装基础 arm，省略 `kinetix` extra。`linkerbot-arm-ros2` 的节点同样默认使用 `CANTransport`，沿用现有 PP 控制调用；这不增加 ROS2 的 MIT/CSP Topic 或 Service。
+ROS2 环境按 [ROS2 接入](ROS2.md) 使用系统兼容的运动学依赖，安装基础 arm，省略 `kinetix` extra。`linkerbot-arm-ros2-sdk` 的节点同样默认使用 `CANTransport`，沿用现有 PP 控制调用；这不增加 ROS2 的 MIT/CSP Topic 或 Service。
 
 ## 选择后端
 
