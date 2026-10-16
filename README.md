@@ -82,4 +82,13 @@ torque conversion is unavailable. Check the upstream scaling defaults against yo
 - [Migration from the legacy SDK](docs/MIGRATION.md)
 - [Changelog](CHANGELOG.md)
 
-See [CONTRIBUTING](CONTRIBUTING.md) for development and testing.
+See [Development checks](DEVELOPMENT.md) for project-specific development and testing.
+
+## Contributing and license
+
+English and Chinese contributions are welcome. Follow the
+[Linkerbot contribution guide](https://github.com/linker-bot/.github/blob/main/CONTRIBUTING.md).
+Report vulnerabilities privately using the
+[organization security policy](https://github.com/linker-bot/.github/blob/main/SECURITY.md).
+
+Licensed under the [MIT License](LICENSE).

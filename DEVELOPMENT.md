@@ -1,6 +1,7 @@
-# 维护约定
+# 开发与验证
 
-- 保持线性历史：功能分支基于最新 `origin/main` 开发，同步主分支使用 rebase，不创建 merge commit。PR 合并使用 squash、rebase 或 fast-forward；变基后的分支使用带明确远程旧提交校验的 `--force-with-lease` 推送。
+贡献流程见[Linkerbot 贡献指南](https://github.com/linker-bot/.github/blob/main/CONTRIBUTING.md)；以下为本项目的开发与验证要求。
+
 - arm 功能在 `linker-bot/linkerbot-arm-python-sdk` 维护，ROS2 消息/服务/启动配置在 `linker-bot/linkerbot-arm-ros2-sdk` 维护；默认分支均为 `main`。
 - 公共导入路径和已有函数调用保持兼容，包括现有集成使用的 `_set_angles` 与 motor 接口。
 - 新增功能优先用新方法或可选参数；修改已有签名前应提供明确迁移方案，不能直接重新生成基线掩盖破坏性变更。

@@ -79,4 +79,11 @@ from linkerbot_arm.arm import State, WayPoint
 - [从旧 SDK 迁移](docs/MIGRATION.md)
 - [版本变更](CHANGELOG.md)
 
-开发、测试和贡献方式见[贡献指南](CONTRIBUTING.md)。
+项目专属的开发与测试说明见[开发检查](DEVELOPMENT.md)。
+
+## 贡献与许可证
+
+欢迎用中文或英文参与贡献，请遵循[Linkerbot 贡献指南](https://github.com/linker-bot/.github/blob/main/CONTRIBUTING.md)。
+安全问题请按[组织安全策略](https://github.com/linker-bot/.github/blob/main/SECURITY.md)私下报告。
+
+本项目采用 [MIT 许可证](LICENSE)。
