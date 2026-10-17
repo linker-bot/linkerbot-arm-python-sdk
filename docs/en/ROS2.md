@@ -11,7 +11,7 @@
 
 Use the distribution's system Python, APT Pinocchio, and a venv with system packages. The ROS2 repository provides `constraints/ros-humble.txt` and `constraints/ros-jazzy.txt`, both using NumPy 1.26.4 and SciPy 1.13.1. Do not reuse another distribution's environment or build outputs.
 
-See the ROS2 [installation guide](https://github.com/linker-bot/linkerbot-arm-ros2-sdk/blob/main/docs/en/INSTALLATION.md) for complete installation, or the [English developer preview](https://doc.linkerhub.work/sdk-doc/#/linkerbot-arm-ros2/docs/environment_setup.md?lang=en). Install the paired SDK commit selected by ROS2's `requirements/source-versions.txt`. Transport installs from current `main` without a version, tag, or old-commit constraint.
+See the ROS2 [installation guide](https://github.com/linker-bot/linkerbot-arm-ros2-sdk/blob/main/docs/en/INSTALLATION.md) for complete installation, or the [English developer preview](https://doc.linkerhub.work/sdk-doc/#/linkerbot-arm-ros2/docs/environment_setup.md?lang=en). Install both the SDK and Transport from the latest `main` branch of their respective repositories, without pinning a version, tag, or historical commit.
 
 With APT Pinocchio, install the base SDK without `[kinetix]`. APT provides the `pinocchio` module without PyPI `pin` distribution metadata. SDK construction requires Pinocchio even for joint-only control. The SDK's generic `constraints/ros2.txt` does not replace ROS2's distribution-specific profiles.
 

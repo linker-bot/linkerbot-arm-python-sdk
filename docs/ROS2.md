@@ -11,7 +11,7 @@
 
 使用对应 ROS 的系统 Python、APT Pinocchio 和读取系统包的 venv。ROS2 仓库提供 `constraints/ros-humble.txt`、`constraints/ros-jazzy.txt`，均使用 NumPy 1.26.4、SciPy 1.13.1；不要直接复用另一发行版的环境或构建结果。
 
-完整安装流程见 ROS2 [安装与构建](https://github.com/linker-bot/linkerbot-arm-ros2-sdk/blob/main/docs/INSTALLATION.md)，开发预览见[ROS2 使用手册](https://doc.linkerhub.work/sdk-doc/#/linkerbot-arm-ros2/docs/environment_setup.md)。SDK 使用 ROS2 仓库 `requirements/source-versions.txt` 的配套提交，transport 从当前 `main` 安装，不限制版本号、tag 或旧提交。
+完整安装流程见 ROS2 [安装与构建](https://github.com/linker-bot/linkerbot-arm-ros2-sdk/blob/main/docs/INSTALLATION.md)，开发预览见[ROS2 使用手册](https://doc.linkerhub.work/sdk-doc/#/linkerbot-arm-ros2/docs/environment_setup.md)。SDK 和 Transport 均从各自仓库最新的 `main` 分支安装，不固定版本号、tag 或历史提交。
 
 APT 方案安装基础 SDK，不添加 `[kinetix]`；APT 提供 `pinocchio` 模块，没有 PyPI `pin` 发行元数据。即使只使用关节控制，SDK 构造仍需要 Pinocchio。独立 SDK 的通用 `constraints/ros2.txt` 不能替代 ROS2 的发行版 profile。
 
