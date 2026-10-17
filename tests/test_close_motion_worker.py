@@ -268,5 +268,7 @@ def test_two_real_sigints_defer_bus_close_until_worker_restoration(
     )
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout) == [
-        [["restore", False], ["bus_closed", True]], "KeyboardInterrupt", True
+        [["restore", False], ["bus_closed", True]],
+        "KeyboardInterrupt",
+        True,
     ]
