@@ -518,6 +518,94 @@ def test_receipt_wraps_non_can_backend_errors(error):
         assert caught.value.__cause__ is error
 
 
+@pytest.mark.parametrize("early_result", ["success", "failure", "stop"])
+def test_receipt_bridge_handles_completion_before_callback_registration(
+    monkeypatch, early_result
+):
+    from linkerbot_transport import SendReceipt
+
+    from linkerbot_arm.comm.canfd import CANFDSendReceipt
+
+    parent = dispatcher_module._dispatcher.CANFDMessageDispatcher
+    original_send = parent.send
+    native_receipts = []
+    interface = FakeInterface()
+    expected = CANError("physical send failed")
+    if early_result == "failure":
+        interface.send_error = expected
+
+    def send_and_complete(self, message):
+        source = original_send(self, message)
+        native_receipts.append(source)
+        if early_result == "stop":
+            self.stop()
+        else:
+            try:
+                source.result(1)
+            except CANError:
+                pass
+        assert source.done()
+        return source
+
+    # Keep the stop case queued so its result is independent of worker timing.
+    if early_result == "stop":
+        interface.send = lambda *args, **kwargs: release.wait(2)
+    release = threading.Event()
+    monkeypatch.setattr(parent, "send", send_and_complete)
+    monkeypatch.setattr(dispatcher_module, "THREAD_JOIN_TIMEOUT_S", 0.01)
+    dispatcher = CANFDMessageDispatcher(interface=interface)
+    try:
+        receipt = dispatcher.send(CANFDMessage(1, b"x"))
+        assert type(receipt) is CANFDSendReceipt
+        assert type(native_receipts[0]) is SendReceipt
+        assert receipt is not native_receipts[0]
+        assert receipt.cancel() is False
+        completed = []
+        receipt.add_done_callback(completed.append)
+        if early_result == "failure":
+            with pytest.raises(CANError) as caught:
+                receipt.result(0)
+            assert caught.value is expected
+        elif early_result == "stop":
+            with pytest.raises(StateError, match="stopped before queued send"):
+                receipt.result(0)
+        else:
+            assert receipt.result(0) is None
+            assert native_receipts[0].claimed_at_s is not None
+        assert completed == [receipt]
+    finally:
+        release.set()
+        dispatcher._send_thread.join(1)
+        dispatcher.stop()
+
+
+def test_receipt_callback_stop_preserves_successful_native_batch():
+    interface = _BatchInterface()
+    gate = interface.install_first_send_gate()
+    dispatcher = CANFDMessageDispatcher(interface=interface)
+    callback_finished = threading.Event()
+
+    def stop(_):
+        try:
+            dispatcher.stop()
+        finally:
+            callback_finished.set()
+
+    try:
+        primer = dispatcher.send(CANFDMessage(0, b"primer"))
+        wait_until(lambda: interface._gate_count == 1)
+        receipts = [dispatcher.send(CANFDMessage(i, b"x")) for i in range(1, 4)]
+        receipts[0].add_done_callback(stop)
+        gate.set()
+        assert primer.result(1) is None
+        assert all(receipt.result(1) is None for receipt in receipts)
+        assert callback_finished.wait(1)
+        assert len(interface.batch_calls) == 1
+    finally:
+        gate.set()
+        dispatcher.stop()
+
+
 def test_stop_preserves_best_effort_close_error(caplog):
     class FailingClose(FakeInterface):
         def close(self):

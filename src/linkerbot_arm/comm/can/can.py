@@ -133,7 +133,7 @@ class CANMessageDispatcher(TargetQueueMixin, _TransportDispatcher):
                 raise CANError(*error.args) from error
             return self._tx.submit_fifo_batch(frames, endpoint_id="arm", **options)
 
-    def _handle_bus_error(self, error: Exception) -> None:
+    def _notify_bus_error(self, error: Exception) -> None:
         # Wake checked-send waiters before callbacks acquire an arm's locks.
         # Otherwise a lifecycle caller can wait on the TX thread while its
         # fault callback is waiting for that same caller's motion lock.
@@ -142,7 +142,7 @@ class CANMessageDispatcher(TargetQueueMixin, _TransportDispatcher):
             self._tx.abort(error)
         except Exception:
             logger.exception("Failed to drain arm transmitter after bus error")
-        super()._handle_bus_error(error)
+        super()._notify_bus_error(error)
         periodic = getattr(self, "_arm_periodic_scheduler", None)
         if periodic is not None:
             periodic.close()

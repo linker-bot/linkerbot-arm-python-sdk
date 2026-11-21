@@ -41,7 +41,15 @@ TRANSPORT_PRIVATE_CHANGES = {
         "_lifecycle_release",
     },
     "linkerbot/comm/canfd/socketcan_backend.py": {
+        "_LinkState.__init__",
         "SocketCANFDBackend._frame_flags",
+    },
+    "linkerbot/comm/canfd/dispatcher.py": {
+        "CANFDMessageDispatcher._register_receipt",
+        "CANFDMessageDispatcher._discard_receipt",
+        "CANFDMessageDispatcher._complete_receipt",
+        "CANFDMessageDispatcher._fail_receipt",
+        "CANFDMessageDispatcher._take_receipt",
     },
 }
 
