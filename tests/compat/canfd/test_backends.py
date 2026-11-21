@@ -367,7 +367,7 @@ def test_socketcan_models_errors_and_retryable_shutdown(monkeypatch, caplog):
         transport_socket,
         "_read_link_state",
         lambda channel: transport_socket._LinkState(
-            up=True, fd=True, bitrate=1000000, data_bitrate=5000000
+            kind="can", up=True, fd=True, bitrate=1000000, data_bitrate=5000000
         ),
     )
     monkeypatch.setattr(can, "Bus", lambda **kw: bus)
@@ -444,7 +444,7 @@ def test_socketcan_deferred_receive_error_preserves_arm_frames(monkeypatch):
         transport_socket,
         "_read_link_state",
         lambda channel: transport_socket._LinkState(
-            up=True, fd=True, bitrate=1000000, data_bitrate=5000000
+            kind="can", up=True, fd=True, bitrate=1000000, data_bitrate=5000000
         ),
     )
     interface = SocketCANFDBackend("deferred-frame-test")

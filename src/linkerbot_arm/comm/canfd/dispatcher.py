@@ -13,7 +13,6 @@ from linkerbot_transport.canfd import dispatcher as _dispatcher
 from linkerbot_transport.canfd.dispatcher import (
     DEFAULT_MAX_CONSECUTIVE_ERRORS,
     THREAD_JOIN_TIMEOUT_S,
-    _QueuedSend,
 )
 from linkerbot_transport.canfd.dispatcher import (
     ERROR_BACKOFF_BASE_S as ERROR_BACKOFF_BASE_S,
@@ -42,7 +41,7 @@ from linkerbot_transport.canfd.dispatcher import (
 from linkerbot_transport.canfd.dispatcher import (
     time as time,
 )
-from linkerbot_transport.errors import TransportError
+from linkerbot_transport.errors import QueueFullError, TransportError
 
 from linkerbot_arm.exceptions import CANError, StateError, ValidationError
 
@@ -56,7 +55,7 @@ class _PreservedFailure(BaseException):
 
 
 class CANFDSendReceipt(Future[None]):
-    """Original, non-cancellable queued-send Future with transport tracker hooks."""
+    """Original Future[None] view of a Transport-owned send receipt."""
 
     def _dispatch(self) -> None:
         self.set_result(None)
@@ -64,13 +63,8 @@ class CANFDSendReceipt(Future[None]):
     def _fail(self, error: BaseException) -> None:
         if isinstance(error, _PreservedFailure):
             error = error.error
-        elif not isinstance(error, CANError):
-            if isinstance(error, TransportError):
-                mapped = CANError(*error.args)
-                mapped.__cause__ = error.__cause__ or error.cause or error
-                error = mapped
-            else:
-                error = _send_error(error, "CANFD background send failed")
+        else:
+            error = _send_error(error, "CANFD background send failed")
         self.set_exception(error)
 
 
@@ -117,17 +111,30 @@ class CANFDMessageDispatcher(_dispatcher.CANFDMessageDispatcher):
         the returned receipt when the caller must observe backend failures.
         """
         receipt = CANFDSendReceipt()
+        receipt.set_running_or_notify_cancel()
         with self._error_lock:
             if self._bus_error is not None:
                 raise CANError(f"CANFD bus unavailable: {self._bus_error}")
             if not self._running:
                 raise RuntimeError("Cannot send on a stopped CANFDMessageDispatcher")
-            self._register_receipt(receipt)
+        try:
+            source = super().send(message)
+        except QueueFullError as error:
+            raise queue.Full() from error
+        except TransportError as error:
+            raise _send_error(error, "CANFD send failed") from error
+
+        def completed(source):
             try:
-                self._send_queue.put_nowait(_QueuedSend(message, receipt))
-            except BaseException:
-                self._discard_receipt(receipt)
-                raise
+                source.result()
+            except BaseException as error:
+                receipt._fail(error)
+            else:
+                receipt._dispatch()
+
+        # add_done_callback also handles a send completed before registration.
+        # Only the Transport receipt participates in its claim/queue lifecycle.
+        source.add_done_callback(completed)
         return receipt
 
     def stop(self) -> None:
@@ -178,13 +185,9 @@ class CANFDMessageDispatcher(_dispatcher.CANFDMessageDispatcher):
             self._subscribers.clear()
             self._filtered_subscribers.clear()
 
-    def _handle_bus_error(self, error: Exception) -> None:
-        with self._error_lock:
-            if self._error_reported:
-                return
-            self._error_reported = True
-            self._running = False
-            self._bus_error = error
+    def _notify_bus_error(self, error: Exception) -> None:
+        # Transport latches both RX and TX faults before entering this hook.
+        error = _send_error(error, "CANFD bus unavailable")
         self._fail_all_receipts(_send_error(error, "CANFD bus unavailable"))
         self._logger.error(f"CANFD bus fatal error, stopping dispatcher: {error}")
         if self._on_bus_error is not None:
@@ -193,22 +196,6 @@ class CANFDMessageDispatcher(_dispatcher.CANFDMessageDispatcher):
             except Exception as callback_error:
                 self._logger.error(f"Error in on_bus_error callback: {callback_error}")
 
-    def _register_receipt(self, receipt: CANFDSendReceipt) -> None:
-        receipt.set_running_or_notify_cancel()
-        self._receipts.register(receipt)
-
-    def _discard_receipt(self, receipt: CANFDSendReceipt) -> None:
-        self._receipts.discard(receipt)
-
-    def _complete_receipt(self, receipt: CANFDSendReceipt) -> None:
-        self._receipts.succeed(receipt)
-
-    def _fail_receipt(self, receipt: CANFDSendReceipt, error: BaseException) -> None:
-        self._receipts.fail(receipt, _PreservedFailure(error))
-
-    def _take_receipt(self, receipt: CANFDSendReceipt) -> bool:
-        return self._receipts._take(receipt)
-
     def _fail_all_receipts(self, error: BaseException) -> None:
         self._receipts.fail_all(_PreservedFailure(error))
 
@@ -216,6 +203,13 @@ class CANFDMessageDispatcher(_dispatcher.CANFDMessageDispatcher):
 def _send_error(error: BaseException, operation: str) -> CANError:
     if isinstance(error, CANError):
         return error
+    if isinstance(error, TransportError):
+        cause = error.__cause__ or error.cause
+        if isinstance(cause, CANError):
+            return cause
+        wrapped = CANError(*error.args)
+        wrapped.__cause__ = cause or error
+        return wrapped
     wrapped = CANError(f"{operation}: {error}")
     wrapped.__cause__ = error
     return wrapped
